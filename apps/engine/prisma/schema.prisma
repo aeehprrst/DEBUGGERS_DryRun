@@ -1,0 +1,281 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// IDENTITY
+// P0 ships with one seeded user. Every table carries userId or
+// reaches it through a relation, so enabling auth later is a
+// middleware swap, never a migration.
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+
+  projects  Project[]
+}
+
+// ─────────────────────────────────────────────────────────────
+// PROJECTS & RUNS
+// ─────────────────────────────────────────────────────────────
+
+model Project {
+  id           String   @id @default(cuid())
+  userId       String?                        // nullable — future auth
+  name         String?
+  targetUrl    String                         // canonical target, e.g. http://localhost:5173
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  runs         Run[]
+  tours        Tour[]
+  driftReports DriftReport[]
+
+  @@index([userId, updatedAt])
+}
+
+model Run {
+  id           String    @id @default(cuid())
+  projectId    String
+  userId       String
+  label        String?                        // "v1", "v2", "after copy fix"
+  targetUrl    String
+
+  // ── lifecycle ── RunStatus / RunStage enums — packages/core ──
+  status       String    @default("CREATED")
+  stage        String    @default("crawl")
+  progressPct  Int       @default(0)
+  error        String?                        // set when status = FAILED
+  degradedFor  String?                        // why DEGRADED: "no-scouts" | "quota" | "target-errors"
+
+  // ── config (JSON String) ────────────────────────────────
+  config       String                         // { personaMix, tasks, budget, viewports,
+                                                //   hasTargetCredentials: boolean }
+
+  // ── results (JSON String, written once per stage) ────────
+  graph        String?                        // StateGraph          — packages/core
+  calibration  String?                        // CalibrationParams
+  chorus       String?                        // ChorusResult
+  metrics      String?                        // Record<StateId, StateMetrics>
+
+  // ── denormalised counters, for list views without parsing blobs ──
+  stateCount       Int     @default(0)
+  actionCount      Int     @default(0)
+  scoutCount       Int     @default(0)
+  populationSize   Int     @default(0)
+  findingCount     Int     @default(0)
+  topFrictionScore Int?                       // headline number on the run card
+  topStateName     String?
+  fitMae           Float?                     // calibration quality; > 0.15 ⇒ low confidence
+  truncated        Boolean @default(false)    // crawl hit its budget
+
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  durationMs   Int?
+
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  traces       ScoutTrace[]
+  findings     Finding[]
+  modelCalls   ModelCall[]
+  tours        Tour[]
+
+  @@index([projectId, startedAt])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────
+// GROUNDED EVIDENCE
+// ─────────────────────────────────────────────────────────────
+
+model ScoutTrace {
+  id               String   @id @default(cuid())
+  runId            String
+  personaId        String
+  personaArchetype String                     // "impatient-founder"
+  personaLabel     String                     // "Impatient Founder"
+  taskId           String
+
+  result           String                     // success | abandoned | blocked | timeout
+  abandonReason    String?                    // patience | confusion | dead-end | error
+  terminalStateId  String
+  stepCount        Int
+  durationMs       Int
+
+  steps            String                     // ScoutStep[] as JSON — packages/core
+  decisionStats    String                     // { heuristic: n, model: n, fallback: n }
+
+  createdAt        DateTime @default(now())
+
+  run              Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([runId, result])
+  @@index([runId, terminalStateId])           // "who died on this screen?" — inspector query
+}
+
+// ─────────────────────────────────────────────────────────────
+// FINDINGS  (normalised: sorted, filtered, linked)
+// ─────────────────────────────────────────────────────────────
+
+model Finding {
+  id              String   @id @default(cuid())
+  runId           String
+  stateId         String                      // node in the graph blob
+  stateName       String                      // denormalised for list rendering
+  signature       String                      // FindingSignature — packages/core
+
+  title           String
+  explanation     String
+
+  frictionScore   Float                       // 0–100
+  fixValue        Float                       // 0–1  ← default sort
+  impact          Float
+  reach           Float
+  confidence      Float
+  provenance      String                      // observed | modeled | predicted
+  rank            Int                         // stable display order
+
+  groundedTraceIds String                     // string[] as JSON
+  affectedSegments String                     // { archetype, failureRate }[] as JSON
+  evidence         String                     // { screenshots: string[], quotes: string[] }
+
+  createdAt       DateTime @default(now())
+
+  run             Run        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  tourSteps       TourStep[]
+
+  @@index([runId, rank])
+  @@index([runId, stateId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// TOURS  (steps are PATCHed individually ⇒ must be rows)
+// ─────────────────────────────────────────────────────────────
+
+model Tour {
+  id           String   @id @default(cuid())
+  runId        String
+  projectId    String
+  version      Int      @default(1)
+  name         String
+  status       String   @default("DRAFT")     // DRAFT | APPROVED | EXPORTED
+  parentTourId String?                        // v1 → v2 after drift re-anchor
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  run          Run        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  project      Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent       Tour?      @relation("TourVersions", fields: [parentTourId], references: [id])
+  children     Tour[]     @relation("TourVersions")
+  steps        TourStep[]
+
+  @@index([projectId, version])
+  @@index([runId])
+}
+
+model TourStep {
+  id              String    @id @default(cuid())
+  tourId          String
+  order           Int
+  sourceFindingId String?
+
+  anchor          String                      // SemanticAnchor as JSON — packages/core
+  title           String
+  body            String
+  placement       String    @default("bottom") // top|bottom|left|right|center
+  advanceOn       String                      // { type, condition? } as JSON
+
+  status          String    @default("proposed") // StepStatus enum — packages/core
+  approvedBy      String?
+  approvedAt      DateTime?
+
+  originalTitle   String?                     // pre-edit, so the UI can show what changed
+  originalBody    String?
+
+  tour            Tour     @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  finding         Finding? @relation(fields: [sourceFindingId], references: [id], onDelete: SetNull)
+
+  @@index([tourId, order])
+}
+
+// ─────────────────────────────────────────────────────────────
+// DRIFT
+// ─────────────────────────────────────────────────────────────
+
+model DriftReport {
+  id              String   @id @default(cuid())
+  projectId       String
+  baseRunId       String
+  headRunId       String
+  baseTourId      String?
+
+  matches         String                      // NodeMatch[] as JSON
+  addedStates     String                      // StateId[] as JSON
+  removedStates   String                      // StateId[] as JSON
+  stepHealth      String                      // per-step status + proposed anchors
+
+  intactCount     Int      @default(0)
+  reanchoredCount Int      @default(0)
+  brokenCount     Int      @default(0)
+
+  appliedTourId   String?                     // set when re-anchors are applied
+  appliedAt       DateTime?
+  createdAt       DateTime @default(now())
+
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@unique([baseRunId, headRunId])            // one report per pair; recompute overwrites
+}
+
+// ─────────────────────────────────────────────────────────────
+// SAFETY & AUDIT
+// ─────────────────────────────────────────────────────────────
+
+model Attestation {
+  id         String   @id @default(cuid())
+  runId      String                           // plain String — deliberately NOT a relation
+  userId     String
+  targetUrl  String
+  attested   Boolean
+  userAgent  String?
+  attestedAt DateTime @default(now())
+
+  @@index([runId])
+  @@index([targetUrl])
+}
+
+// ─────────────────────────────────────────────────────────────
+// MODEL LAYER  (observability + cost control)
+// ─────────────────────────────────────────────────────────────
+
+model ModelCall {
+  id        String   @id @default(cuid())
+  runId     String
+  traceId   String?
+  stateId   String?
+  source    String                            // heuristic | model | fallback | cache
+  provider  String?                           // reka | gemini | none
+  model     String?
+  latencyMs Int
+  tokensIn  Int?
+  tokensOut Int?
+  status    String                            // ok | rate_limited | parse_error | network_error
+  errorCode String?
+  createdAt DateTime @default(now())
+
+  run       Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, source])
+  @@index([runId, createdAt])
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@dry-run/usher-rt",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "build": "esbuild src/index.ts --bundle --minify --format=iife --outfile=dist/usher-rt.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,42 @@
+# ── dependencies ─────────────────────────────────────────────
+node_modules/
+.pnpm-store/
+
+# ── build output ─────────────────────────────────────────────
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# ── secrets ──────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── engine runtime data (TRD §8) ─────────────────────────────
+# Screenshots and the SQLite file. The directory itself must exist for
+# Prisma and @fastify/static, so .gitkeep is deliberately tracked.
+# apps/engine/fixtures/ is NOT ignored — fixtures are demo insurance (L5).
+apps/engine/data/*
+!apps/engine/data/.gitkeep
+
+# ── scratch dumps from the prototype ─────────────────────────
+_*_dump.json
+
+# ── logs, editor, OS ─────────────────────────────────────────
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ── test / tooling caches ────────────────────────────────────
+coverage/
+.vitest/
+playwright-report/
+test-results/
