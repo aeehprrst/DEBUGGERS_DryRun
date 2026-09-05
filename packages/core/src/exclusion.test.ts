@@ -3,6 +3,7 @@ import {
   affectedSegmentsFor,
   computeExclusionDeltas,
   computeExclusionIndex,
+  screenLabels,
   screenNameFor,
 } from "./exclusion.js";
 import { BASELINE_SEGMENT, SEGMENTS } from "./segments.js";
@@ -289,5 +290,47 @@ describe("AN-07 · screenNameFor", () => {
     expect(screenNameFor({ title: "M", url: "https://x.test/a/b?q=1#f" })).toBe("M · /a/b");
     expect(screenNameFor({ title: "M", url: "https://x.test" })).toBe("M · /");
     expect(screenNameFor({ title: "", url: "/relative/path" })).toBe("/relative/path");
+  });
+});
+
+describe("AT-08 · screenLabels", () => {
+  const h = (name: string) => [{ role: "heading", name }];
+  const meridian = [
+    { id: "s0", title: "Meridian", url: "http://x/signup", a11yTree: h("Create your account") },
+    { id: "s4", title: "Meridian", url: "http://x/webhook", a11yTree: h("Configure your ingestion webhook") },
+    { id: "s5", title: "Meridian", url: "http://x/webhook", a11yTree: h("Configure your ingestion webhook") },
+  ];
+
+  it("appends the heading when it adds information", () => {
+    expect(screenNameFor(meridian[0])).toBe("Meridian · /signup · Create your account");
+  });
+
+  it("does not append a heading that repeats the title", () => {
+    expect(
+      screenNameFor({ title: "Connect a data source", url: "http://x/connect", a11yTree: h("Connect a data source") }),
+    ).toBe("Connect a data source · /connect");
+  });
+
+  it("does not append a heading that restates the pathname", () => {
+    expect(
+      screenNameFor({ title: "M", url: "http://x/connect-a-source", a11yTree: h("Connect a source") }),
+    ).toBe("M · /connect-a-source");
+  });
+
+  it("never renders two states with an identical label", () => {
+    const labels = screenLabels(meridian);
+    const values = [...labels.values()];
+    expect(new Set(values).size).toBe(values.length);
+    expect(labels.get("s4")).toBe("Meridian · /webhook · Configure your ingestion webhook · s4");
+    expect(labels.get("s5")).toBe("Meridian · /webhook · Configure your ingestion webhook · s5");
+  });
+
+  it("leaves non-colliding states unsuffixed", () => {
+    expect(screenLabels(meridian).get("s0")).toBe("Meridian · /signup · Create your account");
+  });
+
+  it("falls back cleanly when there is no heading at all", () => {
+    expect(screenNameFor({ title: "M", url: "http://x/a" })).toBe("M · /a");
+    expect(screenNameFor({ title: "M", url: "http://x/a", a11yTree: [] })).toBe("M · /a");
   });
 });

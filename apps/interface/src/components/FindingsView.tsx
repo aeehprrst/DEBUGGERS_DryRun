@@ -1,8 +1,15 @@
 "use client";
 
-import type { AtlasNode, Finding, RunStatus } from "@dry-run/core";
-import { frictionColor } from "@dry-run/core";
-import { useCallback, useEffect, useState } from "react";
+import type { AtlasNode, Finding, RunExclusion, RunStatus } from "@dry-run/core";
+import {
+  ARCHETYPE_WEIGHT_TOTAL,
+  UNSEGMENTED_ARCHETYPES,
+  frictionColor,
+  screenLabels,
+} from "@dry-run/core";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import ExclusionIndexHeader from "./design/ExclusionIndexHeader";
+import ExclusionStrip from "./design/ExclusionStrip";
 import FrictionMeter from "./design/FrictionMeter";
 import ProvenanceBadge from "./design/ProvenanceBadge";
 
@@ -16,10 +23,10 @@ import ProvenanceBadge from "./design/ProvenanceBadge";
  * it: a metric Chorus did not produce renders an em dash and badges Predicted
  * (CLAUDE.md §6.5), never a zero standing in for missing data.
  *
- * NOT built here, deliberately: App Flow §8's ExclusionIndex header and the
- * per-finding segment deltas. Those need CH-04 (per-segment metrics) and AN-07,
- * neither of which exists in the engine yet. The layout leaves the space; it
- * does not fill it with an invented number.
+ * The ExclusionIndex header (§8.4) and the per-finding exclusion strips (§9)
+ * are wired to AN-07's real output. Both render "unknown" distinctly from
+ * "zero": a segment CH-04 saw too few personas from has no delta, and saying so
+ * in words is the honest rendering of it (CLAUDE.md §6.5).
  */
 
 // App Flow §8 — "Generate tour from top 3".
@@ -33,6 +40,10 @@ type RunSummary = {
   status: RunStatus;
   stage: string;
   targetUrl: string;
+  // AN-07. Three distinct states, all rendered differently: absent/null means
+  // analysis has not run, `{index: null}` means it ran and nothing was
+  // comparable, an index means there is a headline.
+  exclusion?: RunExclusion | null;
 };
 
 type GraphResponse = {
@@ -61,6 +72,14 @@ export default function FindingsView({ runId }: { runId: string }) {
   const [lightbox, setLightbox] = useState<Finding | null>(null);
   const [tourState, setTourState] = useState<"idle" | "working" | "error">("idle");
   const [tourError, setTourError] = useState<string | null>(null);
+
+  // Labels are resolved over the whole node set, not per card: two states that
+  // share a title, a pathname and a heading (Meridian's /webhook page and the
+  // modal above it) can only be told apart by something that has seen both.
+  const labels = useMemo(
+    () => (data ? screenLabels([...data.nodesById.values()]) : new Map<string, string>()),
+    [data],
+  );
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -151,6 +170,34 @@ export default function FindingsView({ runId }: { runId: string }) {
           </p>
         </header>
 
+        {/* §8.4 puts the ExclusionIndex header "first on the page". It sits
+            below the h1 rather than above it because §10.3 wants a sensible
+            heading order for a keyboard and screen-reader operator, and an h2
+            preceding the page's own h1 is exactly the failure §10 opens by
+            saying we cannot afford. First block of content, correct outline. */}
+        <ExclusionIndexHeader
+          exclusion={run.exclusion}
+          screenLabel={
+            run.exclusion?.index ? (labels.get(run.exclusion.index.stateId) ?? null) : null
+          }
+          segmentDelta={
+            run.exclusion?.index
+              ? nodesById.get(run.exclusion.index.stateId)?.metrics?.exclusion?.[
+                  run.exclusion.index.segment
+                ]
+              : undefined
+          }
+          observedFact={
+            run.exclusion?.index
+              ? (findings.find(
+                  (f) =>
+                    f.stateId === run.exclusion?.index?.stateId &&
+                    f.provenance === "observed",
+                )?.explanation ?? null)
+              : null
+          }
+        />
+
         {/* App Flow §8 — the list is aria-live so a screen-reader operator is
             told when findings arrive, per UI/UX §10.4. */}
         <ol className="flex flex-col gap-s-3" aria-live="polite">
@@ -160,6 +207,7 @@ export default function FindingsView({ runId }: { runId: string }) {
                 finding={finding}
                 rank={index + 1}
                 node={nodesById.get(finding.stateId)}
+                screen={labels.get(finding.stateId) ?? finding.stateId}
                 onEvidence={() => setLightbox(finding)}
               />
             </li>
@@ -191,6 +239,7 @@ export default function FindingsView({ runId }: { runId: string }) {
         <EvidenceLightbox
           finding={lightbox}
           node={data.nodesById.get(lightbox.stateId)}
+          screen={labels.get(lightbox.stateId) ?? lightbox.stateId}
           onClose={() => setLightbox(null)}
         />
       ) : null}
@@ -206,11 +255,14 @@ function FindingCard({
   finding,
   rank,
   node,
+  screen,
   onEvidence,
 }: {
   finding: Finding;
   rank: number;
   node: AtlasNode | undefined;
+  /** Resolved by `screenLabels` over the whole node set, never per card. */
+  screen: string;
   onEvidence: () => void;
 }) {
   // The metric on the wire, not a recomputation. AT-02 guarantees `metrics` is
@@ -223,7 +275,6 @@ function FindingCard({
   // Predicted regardless of the finding's own provenance (L6).
   const numberProvenance = metrics ? finding.provenance : "predicted";
 
-  const screen = node ? screenNameOf(node) : finding.stateId;
   const rampColour = friction === null ? "#1F3D4D" : frictionColor(friction);
 
   return (
@@ -273,6 +324,9 @@ function FindingCard({
             explanation the classifier wrote from a browser measurement; it is
             never generated here. */}
         <p className="mt-s-3 text-body-sm text-ink-1">{finding.explanation}</p>
+
+        {/* UI/UX §9 — the exclusion strip, one row per segment. */}
+        <ExclusionStrip exclusion={metrics?.exclusion} />
 
         <div className="mt-s-3 flex items-center gap-s-3">
           <button
@@ -324,14 +378,15 @@ function FixValueLabel() {
 function EvidenceLightbox({
   finding,
   node,
+  screen,
   onClose,
 }: {
   finding: Finding;
   node: AtlasNode | undefined;
+  screen: string;
   onClose: () => void;
 }) {
   const metrics = node?.metrics ?? null;
-  const screen = node ? screenNameOf(node) : finding.stateId;
 
   return (
     <div
@@ -412,6 +467,20 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * The share of the modeled population that any named segment speaks for,
+ * computed from `UNSEGMENTED_ARCHETYPES` rather than written down. PS-05's five
+ * segment ids name four exclusion axes; four archetypes match none of them, so
+ * the segment figures on this page do not describe everyone. Hardcoding 70%
+ * here would go stale the moment a sixth segment or an eleventh archetype
+ * lands — this reads the same constants the engine bucketed with.
+ */
+const UNSEGMENTED_WEIGHT = UNSEGMENTED_ARCHETYPES.reduce((sum, p) => sum + p.weight, 0);
+const COVERED_FRACTION =
+  ARCHETYPE_WEIGHT_TOTAL > 0
+    ? (ARCHETYPE_WEIGHT_TOTAL - UNSEGMENTED_WEIGHT) / ARCHETYPE_WEIGHT_TOTAL
+    : 0;
+
 /** App Flow §8 — "Bias disclosure: one line, always present at the foot." */
 function BiasDisclosure() {
   return (
@@ -419,6 +488,22 @@ function BiasDisclosure() {
       <p className="text-body-sm text-ink-2">
         Synthetic personas encode model priors, not lived experience. Treat findings as
         hypotheses to prioritise, not proof.
+      </p>
+      {/* The coverage caveat sits with the bias line because it is the same
+          kind of statement: what these numbers do not cover. */}
+      <p className="mt-s-2 text-body-sm text-ink-2">
+        Named segments cover{" "}
+        <span className="font-mono text-data tabular-nums">
+          {Math.round(COVERED_FRACTION * 100)}%
+        </span>{" "}
+        of the modeled population by weight.{" "}
+        {UNSEGMENTED_ARCHETYPES.length === 1 ? "One archetype" : `${UNSEGMENTED_ARCHETYPES.length} archetypes`}{" "}
+        carrying the remaining{" "}
+        <span className="font-mono text-data tabular-nums">
+          {Math.round((1 - COVERED_FRACTION) * 100)}%
+        </span>{" "}
+        match none of the five segment definitions, and segments overlap, so segment
+        weights do not sum to the population.
       </p>
     </footer>
   );
@@ -514,19 +599,6 @@ function LoadingState() {
   );
 }
 
-/**
- * The screen a finding sits on. Taken from the crawled state, never from the
- * finding's own text: `AppState.title` is the page's own <title>, and the
- * pathname disambiguates two states that share it — Meridian's /webhook screen
- * and the modal above it have identical titles.
- */
-function screenNameOf(node: AtlasNode): string {
-  let pathname = "";
-  try {
-    pathname = new URL(node.url).pathname;
-  } catch {
-    pathname = node.url;
-  }
-  const title = node.title?.trim();
-  return title ? `${title} · ${pathname}` : pathname;
-}
+/* The local `screenNameOf` that used to live here is gone: `screenLabels` in
+   @dry-run/core is now the single implementation, and it is the only one that
+   can resolve two states sharing a title, a pathname and a heading. */

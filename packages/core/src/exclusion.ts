@@ -105,24 +105,103 @@ export function computeExclusionDeltas(
   return out;
 }
 
+/** The shape `screenNameFor` reads. Any `AppState` satisfies it. */
+export type NameableState = {
+  id?: string;
+  title?: string;
+  url: string;
+  a11yTree?: readonly { role: string; name: string }[];
+};
+
 /**
  * A screen name a person can read, for PRD §6.4's headline — *"Worst exclusion:
  * Configure Webhook, screen-reader, +0.62."*
  *
  * `AppState.title` alone is not enough: it is the page's own `<title>`, and
- * Meridian's is the literal string "Meridian" on all seven states, so an index
- * built from it reads "Worst exclusion: Meridian" and names nothing. The
- * pathname disambiguates, including the two states that share `/webhook` — the
- * page and the modal above it.
+ * Meridian's is the literal string "Meridian" on all seven states, so a label
+ * built from it names nothing. The pathname helps, but Meridian's `/webhook`
+ * page and the modal above it share that too — and two rows naming the same
+ * screen with different numbers reads as a bug rather than as two states.
  *
- * Shortcut, named: `FindingsView.screenNameOf` already does exactly this in the
- * interface. It is lifted here so the engine does not grow a second copy, but
- * the interface still has its own until someone points it at this one — that is
- * a one-line change and this comment is the reason to make it.
+ * So the state's primary heading is appended, but **only when it adds
+ * information**: a heading that merely repeats the title or restates the
+ * pathname makes the label longer without making it more distinct.
+ *
+ * Shortcut, named: CR-04's fingerprint uses "first h1, else first heading",
+ * but `A11yNode` does not persist a heading's `level` — `aria.ts` reads the
+ * level, folds it into the hash and discards it. So this takes the first
+ * heading in document order, which agrees with the fingerprint's choice on
+ * every state that leads with its h1. Persisting `level` on `A11yNode` is what
+ * would replace this, and that is a schema plus crawler change.
+ *
+ * Collisions that survive all of the above are resolved by `screenLabels`,
+ * which is the only caller that can see the whole set.
  */
-export function screenNameFor(state: { title?: string; url: string }): string {
+export function screenNameFor(state: NameableState): string {
+  const pathname = pathnameOf(state.url);
   const title = state.title?.trim();
-  return title ? `${title} · ${pathnameOf(state.url)}` : pathnameOf(state.url);
+  const base = title ? `${title} · ${pathname}` : pathname;
+
+  const heading = primaryHeadingOf(state);
+  return heading && headingAddsInformation(heading, title, pathname)
+    ? `${base} · ${heading}`
+    : base;
+}
+
+function primaryHeadingOf(state: NameableState): string | null {
+  const heading = state.a11yTree?.find((n) => n.role === "heading");
+  const name = heading?.name.trim();
+  return name && name.length > 0 ? name : null;
+}
+
+/**
+ * A heading earns its place only if it is not already being said. Compared
+ * case- and separator-insensitively, so "Connect a data source" is recognised
+ * as a restatement of `/connect-a-data-source` and of the title that repeats
+ * it, rather than being appended to itself.
+ */
+function headingAddsInformation(
+  heading: string,
+  title: string | undefined,
+  pathname: string,
+): boolean {
+  const flatten = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const flat = flatten(heading);
+  if (flat.length === 0) return false;
+  if (title && flatten(title) === flat) return false;
+  return flatten(pathname) !== flat;
+}
+
+/**
+ * Labels for a whole set of states, guaranteed distinct.
+ *
+ * Two states rendered with an identical label is a correctness bug in a view
+ * whose entire job is attributing numbers to screens — Meridian's `/webhook`
+ * page and its modal share a title, a pathname *and* a primary heading, so
+ * `screenNameFor` alone cannot separate them. Where that happens the state id
+ * is appended: it is short, stable across a re-run, and already the vocabulary
+ * the evaluation harness prints, so an operator comparing the two surfaces sees
+ * the same token in both.
+ *
+ * The suffix is added only to the states that actually collide, so a graph with
+ * no ambiguity carries no ids at all.
+ */
+export function screenLabels(
+  states: readonly NameableState[],
+): Map<string, string> {
+  const counts = new Map<string, number>();
+  for (const state of states) {
+    const base = screenNameFor(state);
+    counts.set(base, (counts.get(base) ?? 0) + 1);
+  }
+
+  const out = new Map<string, string>();
+  for (const state of states) {
+    const base = screenNameFor(state);
+    const id = state.id ?? base;
+    out.set(id, (counts.get(base) ?? 0) > 1 ? `${base} · ${id}` : base);
+  }
+  return out;
 }
 
 /**
