@@ -67,6 +67,21 @@ export const StateGraphSchema = z.object({
 });
 export type StateGraph = z.infer<typeof StateGraphSchema>;
 
+// CR-07 / TRD §5.2.3 — operator-supplied fill values for the crawl, keyed by
+// the field's *accessible name* (not id, not selector — §6.1). This is step 1 of
+// the four-step fill order; the remaining three steps are derived in the engine
+// and need no contract. Lives here because the Setup screen posts it and the
+// cartographer consumes it.
+export const SeededValuesSchema = z.record(z.string(), z.string());
+export type SeededValues = z.infer<typeof SeededValuesSchema>;
+
+// TRD S4 / CLAUDE.md §8 — exact accessible names the attesting operator has
+// explicitly permitted the crawler to activate, overriding the destructive
+// blocklist for one run. Exact matches only: a substring or pattern allowlist
+// would let one approval widen silently as the target's copy changes.
+export const AllowActionsSchema = z.array(z.string());
+export type AllowActions = z.infer<typeof AllowActionsSchema>;
+
 // ---------- Personas & tasks ----------
 
 export const PersonaTraitVectorSchema = z.object({

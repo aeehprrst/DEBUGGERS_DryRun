@@ -5,7 +5,12 @@ import type {
   Finding as PrismaFindingRelation,
   TourStep as PrismaTourStepRow,
 } from "@prisma/client";
-import { FindingSignature, Provenance, StepStatus } from "@dry-run/core";
+import {
+  FindingSignature,
+  NON_TERMINAL_RUN_STATUSES,
+  Provenance,
+  StepStatus,
+} from "@dry-run/core";
 import type {
   Finding as CoreFinding,
   SemanticAnchor,
@@ -70,11 +75,14 @@ export async function saveCrawlResult(
   graph: StateGraph,
   counters: { stateCount: number; actionCount: number; truncated: boolean },
 ) {
+  // No `stage` write here. Scouts are cut (CLAUDE.md §5), so the old
+  // `stage: "scouts"` set every run to a stage that no longer exists in the
+  // RunStage enum and stranded it there forever. The orchestrator owns stage
+  // transitions now (TRD §4.1 rule 2).
   await prisma.run.update({
     where: { id: runId },
     data: {
       graph: JSON.stringify(graph),
-      stage: "scouts",
       stateCount: counters.stateCount,
       actionCount: counters.actionCount,
       truncated: counters.truncated,
@@ -83,11 +91,29 @@ export async function saveCrawlResult(
 }
 
 export async function bootDatabase() {
+  // Backend Schema §5 — all four are required before the first query. The
+  // imported code set only the first two; `busy_timeout` in particular matters
+  // now that the orchestrator writes at every stage boundary while SSE
+  // subscribers read concurrently, which is exactly when SQLITE_BUSY appears.
   await prisma.$queryRaw`PRAGMA foreign_keys = ON;`;
   await prisma.$queryRaw`PRAGMA journal_mode = WAL;`;
+  await prisma.$queryRaw`PRAGMA synchronous = NORMAL;`;
+  await prisma.$queryRaw`PRAGMA busy_timeout = 5000;`;
 
-  await prisma.run.updateMany({
-    where: { status: { in: ["CRAWLING", "SCOUTING", "CHORUS"] } },
-    data: { status: "FAILED", error: "Engine restarted during this run" },
+  // Backend Schema §5 orphan sweep. The imported version listed only
+  // CRAWLING | SCOUTING | CHORUS, so a run killed during analysis or tour
+  // stayed non-terminal forever and the UI waited on it indefinitely. The list
+  // is derived from the RunStatus enum rather than written out here, so a new
+  // status cannot be added without being classified terminal or not.
+  const orphaned = await prisma.run.updateMany({
+    where: { status: { in: [...NON_TERMINAL_RUN_STATUSES] } },
+    data: {
+      status: "FAILED",
+      stage: "done",
+      error: "Engine restarted during this run",
+      finishedAt: new Date(),
+    },
   });
+
+  return { orphanedRuns: orphaned.count };
 }

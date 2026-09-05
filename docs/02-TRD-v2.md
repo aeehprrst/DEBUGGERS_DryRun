@@ -279,7 +279,19 @@ Fill order for every input:
 3. else derive from `type` / `inputmode` / name heuristics (email → `dryrun+<runId>@example.invalid`)
 4. else `"Dry Run sample text"`
 
-Without this the crawl stops at `/connect` and D4, D5 and D6 can never be found.
+Without this the crawl stops at `/connect`. This unblocks **D4**; D5 and D6 sit behind
+"Send invite" and additionally needed the amended S4 blocklist, which no longer matches bare
+`send`.
+
+`RunConfig` also carries **`allowActions: string[]`** — exact accessible names the operator
+explicitly permits the crawler to activate, overriding the S4 blocklist for this run only.
+Matching is exact and case-sensitive: a substring or pattern allowlist would let one approval
+widen on its own as the target's copy changes. Allowlisting requires attestation (S1) and every
+allowed action is written to the run's audit record (`Attestation.allowActions`).
+
+Meridian needs **no** allowlist — the amended S4 permits "Send invite" outright — and no
+per-target default is granted for anything. An exception is only ever named explicitly on the
+request, so a standing default would contradict CLAUDE.md §8.
 
 **5.2.4 Static signals (CR-12) — nine, all zero-AI**
 `belowFoldPrimaryCta` · `offscreenInteractives[]` · `primaryCtaContrast` ·
@@ -594,7 +606,7 @@ Fixtures under `apps/engine/fixtures/` **are** committed.
 | S1 | Attestation gate | 400 unless `attestation === true`; `Attestation` row with timestamp + UA |
 | S2 | SSRF guard | `dns.lookup` the host; reject `127/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `::1` unless `ALLOW_PRIVATE_TARGETS=1` |
 | S3 | Production warning | Warn hard if the host resolves to a well-known production domain |
-| S4 | Destructive blocklist | Never click names matching `/delete|remove|pay|purchase|publish|send|cancel subscription/` |
+| S4 | Destructive blocklist | Blocked by default: names matching `/delete\|remove\|destroy\|pay\|purchase\|checkout\|subscribe\|publish\|cancel subscription\|transfer\|send payment\|send money\|wire/`. The bare word `send` is **not** blocked — invite and submit actions are part of normal onboarding funnels, and blocking them makes most real apps unmappable. **Per-run allowlist:** `RunConfig.allowActions: string[]` names exact accessible names the operator explicitly permits; an allowlisted name overrides the blocklist. Requires attestation (S1); every allowed action is written to the run's audit record. |
 | S5 | Politeness | `User-Agent: DryRun-Bot/1.0`, `X-DryRun-Run-Id`, configurable rate limit, `robots.txt` respected by default |
 | S6 | Synthetic data | `dryrun+<runId>@example.invalid`; fixture values only |
 | S7 | **Secrets hygiene** | Mask password/key/secret/token fields before every screenshot write; redact matching values from traces |

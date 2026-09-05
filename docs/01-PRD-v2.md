@@ -250,16 +250,17 @@ more · `NEW` = does not exist.
 | CR-01 | Target intake: URL + attestation gate | P0 | HAVE |
 | CR-02 | Playwright BFS crawl with priority queue (favour `continue\|next\|create\|connect\|invite\|setup`, penalise `help\|docs\|pricing\|blog\|terms\|logout`, decay by depth) | P0 | EXTEND — currently plain FIFO, explores footers as eagerly as the funnel |
 | CR-03 | Accessibility-tree extraction per state (`ariaSnapshot({mode:"ai", boxes:true})`) | P0 | HAVE — the technical keystone, works on real websites |
-| CR-04 | **Composite state fingerprint** — `sha256(urlPattern \| sortedRoleNamePairs \| primaryHeading \| landmarkSkeleton)` | P0 | FIX — current version is structure-only, so different screens collapse into one node and renames are invisible |
+| CR-04 | **Composite state fingerprint** — `sha256(urlPattern \| sortedRoleNamePairs \| primaryHeading \| landmarkSkeleton)` | P0 | **DONE** — shipped alongside CR-07; the two were entangled. Under the old structure-only hash `/connect` and `/invite` collapsed into one node, so CR-07 produced no observable change until this landed. `softFingerprint` is not yet implemented. |
 | CR-05 | Action-edge extraction with `observedDelta`, `irreversible`, `latencyMs` | P0 | EXTEND |
 | CR-06 | Screenshots + 512×320 q70 thumbnails, **password/secret fields masked before write** | P0 | EXTEND |
-| CR-07 | Seeded field values per run (`{"API key": "mk_demo123"}`) or `placeholder`-derived fill | **P0** | **NEW — highest-leverage single change in the project.** Without it the crawler stops at `/connect` and defects D4, D5, D6 are undetectable. |
+| CR-07 | Seeded field values per run (`{"API key": "mk_demo123"}`) or `placeholder`-derived fill | **P0** | **DONE** — highest-leverage single change in the project. Without it the crawler stops at `/connect`. It unblocks **D4**; D5 and D6 additionally needed the amended S4 blocklist (bare `send`), and D3 now needs CR-14. |
 | CR-08 | Graph persistence per run | P0 | HAVE |
 | CR-09 | **Multi-viewport crawl** — desktop 1280 + mobile 390, per-viewport static signals | P0 | NEW — this is what makes D5 detectable and the mobile segment real |
 | CR-10 | Safety: blocklist, budget, SSRF guard, bot UA, run-id header, robots.txt | P0 | EXTEND — only blocklist and budget exist |
 | CR-11 | Live crawl SSE (`state-found`, `edge-found`) with buffer eviction | P0 | EXTEND |
 | CR-12 | Static signals: below-fold CTA, offscreen interactives, WCAG contrast, `aria-live` presence, competing CTAs, jargon score, interactive count, **error-text contrast** | P0 | EXTEND — 5 of 9; error-text contrast is what classifies D3 |
 | CR-13 | `DRYRUN_REPLAY=<fixtureId>` — serve a cached crawl instead of crawling (L5) | **P0** | NEW |
+| CR-14 | **Validation probe** — on a form with validated or required fields, submit once with a deliberately invalid value, capture the resulting state's error signals (`errorTextContrast`, `hasAriaLive`, and whether the error appears in the accessibility tree at all), then correct the value and proceed | **P0** | NEW — **D3 depends on it.** CR-07 seeds a *valid* key, so the validation error is never triggered and the error state is never reached. Without a deliberate probe, D3's 1.9:1 error text is unobservable. |
 
 ### 8.2 Personas
 
@@ -362,13 +363,24 @@ workspace → Connect data source → Invite team → Configure webhook → Dash
 |---|---|---|---|---|
 | D1 | Create Workspace | Primary CTA below the fold, no scroll cue | `belowFoldPrimaryCta`, high Hesitation | ✅ already proven |
 | D2 | Connect Source | Two competing CTAs; "Continue" is a no-op | self-loop edge → DeadClick | ✅ already proven |
-| D3 | Connect Source | Validation error at 1.9:1 contrast, no `aria-live` | error-text contrast + Loop; screen-reader segment fails | ⚠️ state is reached, never classified — needs CR-12 |
-| D4 | Invite Team | No skip, broken back button | high Blocked | ❌ blocked by CR-07 |
-| D5 | Configure Webhook | Modal close button offscreen at 390px | mobile-only dropout | ❌ needs CR-07 **and** CR-09 |
-| D6 | Configure Webhook | Unexplained jargon | low-`domainLiteracy` abandon | ❌ blocked by CR-07 |
+| D3 | Connect Source | Validation error at 1.9:1 contrast, no `aria-live` | error-text contrast + Loop; screen-reader segment fails | ❌ **no longer reached** — CR-07 seeds a valid key, so the error never fires. Needs CR-14 to trigger it and CR-12 to classify it |
+| D4 | Invite Team | No skip, broken back button | high Blocked | ✅ unblocked by CR-07 — `/invite` is reached and the dead "Back" click is observed as a self-loop |
+| D5 | Configure Webhook | Modal close button offscreen at 390px | mobile-only dropout | ⚠️ reachable now — `/webhook` and the modal are both crawled; needs **CR-09** to see the control go offscreen at 390px |
+| D6 | Configure Webhook | Unexplained jargon | low-`domainLiteracy` abandon | ⚠️ reachable now — `/webhook` is crawled; needs **CR-12**'s `jargonScore` to classify it |
 
 **Never "fix" Meridian's defects.** They are the test fixture. If the crawler can't get past a
 defect, fix the *crawler* (CR-07), not the app.
+
+**Reachability correction.** Two separate changes were needed, and neither was the filler alone.
+CR-07 unblocks **D4**. `/webhook` and `/dashboard` sat behind "Send invite", which the old S4
+blocklist refused to activate because it matched the bare word `send` — so D5 and D6 were never
+blocked by the filler at all. The amended S4 (CLAUDE.md §8) no longer blocks bare `send`, and
+that alone reaches both screens: a crawl with an **empty** `allowActions` list now maps all six
+Meridian screens plus the webhook modal. What remains for D5 is CR-09, and for D6 CR-12.
+
+`allowActions` is therefore **not** required for Meridian. It exists for names that genuinely
+stay blocked, and no per-target default is granted — an exception is only ever named explicitly
+on the request by the attesting operator.
 
 **Meridian v2 — one change only:** on `/connect`, "Connect source" is renamed **"Add a source"**
 and moved from the main card to a right-hand sidebar card. Everything else byte-identical. This

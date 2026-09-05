@@ -175,8 +175,17 @@ The deck claims these. They must exist in code.
   timestamp and user agent.
 - **SSRF guard** — resolve the target host; reject private and loopback ranges unless
   `ALLOW_PRIVATE_TARGETS=1` (set locally for Meridian, never in a shipped default).
-- **Destructive-action blocklist** — never click an accessible name matching delete / remove /
-  pay / purchase / publish / send / cancel.
+- **Destructive-action blocklist** — blocked by default: accessible names matching delete /
+  remove / destroy / pay / purchase / checkout / subscribe / publish / cancel subscription /
+  transfer / send payment / send money / wire.
+  The bare word "send" is **not** blocked — invite and submit actions are part of normal
+  onboarding funnels and blocking them makes most real apps unmappable.
+  **Per-run allowlist:** `RunConfig` may carry `allowActions: string[]` of exact accessible
+  names the operator explicitly permits. An allowlisted name overrides the blocklist.
+  Allowlisting requires attestation (S1) and every allowed action is written to the run's
+  audit record.
+- **Consequential actions are blocked by default; exceptions are named explicitly by the
+  attesting operator.**
 - **Identify ourselves** — `User-Agent: DryRun-Bot/1.0` and an `X-DryRun-Run-Id` header on
   every request. Respect `robots.txt` by default.
 - **Synthetic data only** — form fills use `dryrun+<runId>@example.invalid` and clearly

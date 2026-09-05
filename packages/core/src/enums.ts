@@ -14,8 +14,28 @@ export const RunStatus = z.enum([
   "DONE",
   "FAILED",
   "DEGRADED",
+  // App Flow §3 — `DELETE /runs/:id` while running. Terminal, and the partial
+  // graph is retained and viewable rather than discarded.
+  "CANCELLED",
 ]);
 export type RunStatus = z.infer<typeof RunStatus>;
+
+// The statuses a run can be left in by a process that died mid-pipeline.
+// Backend Schema §5's orphan sweep must cover every one of them — a run killed
+// during analysis previously stayed non-terminal forever and the UI waited on
+// it indefinitely. Derived from the enum rather than hand-listed so a new
+// status cannot be added without appearing here or in TERMINAL_RUN_STATUSES.
+export const TERMINAL_RUN_STATUSES = [
+  "DONE",
+  "FAILED",
+  "DEGRADED",
+  "CANCELLED",
+] as const satisfies readonly RunStatus[];
+
+export const NON_TERMINAL_RUN_STATUSES = RunStatus.options.filter(
+  (s): s is Exclude<RunStatus, (typeof TERMINAL_RUN_STATUSES)[number]> =>
+    !(TERMINAL_RUN_STATUSES as readonly RunStatus[]).includes(s),
+);
 
 export const RunStage = z.enum([
   "crawl",

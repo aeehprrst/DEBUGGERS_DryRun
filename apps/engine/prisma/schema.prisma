@@ -250,6 +250,13 @@ model Attestation {
   attested   Boolean
   userAgent  String?
   attestedAt DateTime @default(now())
+  // TRD S4 — JSON string[] of the exact accessible names this operator
+  // explicitly permitted the crawler to activate, overriding the destructive
+  // blocklist. Null means "no exceptions were granted"; that is the default and
+  // must stay distinguishable from an empty grant. Recorded here rather than
+  // only in Run.config so the approval sits in the audit trail beside the
+  // attestation that authorised it.
+  allowActions String?
 
   @@index([runId])
   @@index([targetUrl])

@@ -3,14 +3,23 @@ import path from "node:path";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import staticPlugin from "@fastify/static";
-import { StepStatus } from "@dry-run/core";
-import type { PersonaTraitVector, StateGraph } from "@dry-run/core";
+import {
+  AllowActionsSchema,
+  SeededValuesSchema,
+  StepStatus,
+} from "@dry-run/core";
+import type {
+  AllowActions,
+  PersonaTraitVector,
+  SeededValues,
+  StateGraph,
+} from "@dry-run/core";
 import { runAnalysis } from "./brain/analysis.js";
 import { runChorusSimulation } from "./brain/chorus.js";
-import { runCrawl } from "./cartographer.js";
+import { cancelRun, startRun } from "./orchestrator.js";
+import { createTourForRun } from "./usher/persist.js";
 import { bootDatabase, prisma, toCoreFinding, toCoreTourStep } from "./db.js";
 import { emitRunEvent, subscribeToRun } from "./sse.js";
-import { generateTourFromFindings } from "./usher/generator.js";
 
 // TRD §5.8 — the interface's `/api/*` rewrite proxies through Next.js, so a
 // request's Host header as seen here can't be trusted to reconstruct this
@@ -19,6 +28,46 @@ import { generateTourFromFindings } from "./usher/generator.js";
 // script from, so this is hardcoded the same way next.config.ts hardcodes
 // the engine's address for its own rewrite destination.
 const ENGINE_ORIGIN = "http://localhost:4000";
+
+// CR-07 — Meridian's /connect rejects any API key that doesn't start with
+// "mk_" (PRD §9.1), which is what stops the crawl short of /invite, /webhook
+// and /dashboard. A real operator types their own seeded values on Setup; this
+// is the bundled demo target's default so the demo run needs no request body.
+// Scoped to Meridian's dev origin so it can never leak onto a third-party
+// target — there it would just be a wrong value typed into someone's form.
+const MERIDIAN_ORIGIN = "http://localhost:5173";
+const MERIDIAN_SEEDED_VALUES: SeededValues = { "API key": "mk_demo123" };
+
+function defaultSeededValuesFor(targetUrl: string): SeededValues {
+  try {
+    return new URL(targetUrl).origin === MERIDIAN_ORIGIN
+      ? MERIDIAN_SEEDED_VALUES
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+// TRD S4 — the demo target's standing exception, scoped to Meridian's dev
+// origin exactly as the seeded values are, so it can never authorise clicking
+// a blocked control on a third-party app. Every other target starts with no
+// exceptions and must name them explicitly on the request.
+//
+// Note this is belt-and-braces rather than load-bearing today: the amended S4
+// blocklist no longer matches bare "send", so "Send invite" is permitted
+// outright and Meridian maps fully with an empty allowlist (verified). It
+// keeps the funnel reachable if `send` is ever restored to the blocklist.
+const MERIDIAN_ALLOW_ACTIONS: AllowActions = ["Send invite"];
+
+function defaultAllowActionsFor(targetUrl: string): AllowActions {
+  try {
+    return new URL(targetUrl).origin === MERIDIAN_ORIGIN
+      ? MERIDIAN_ALLOW_ACTIONS
+      : [];
+  } catch {
+    return [];
+  }
+}
 const USHER_RT_BUNDLE_PATH = path.join(
   process.cwd(),
   "..",
@@ -29,9 +78,14 @@ const USHER_RT_BUNDLE_PATH = path.join(
   "usher-rt.js",
 );
 
+// PS-03 is unbuilt (population size is not yet operator-configurable), so the
+// orchestrator needs a declared default rather than a literal buried in a
+// route handler.
+const DEFAULT_POPULATION_SIZE = 1000;
+
 // TRD §5.3's ten shipped archetypes, trimmed to a small default mix — no
-// per-run persona configuration exists yet, so /runs/:id/chorus needs
-// something reasonable to simulate against with no request body.
+// per-run persona configuration exists yet, so the orchestrator's chorus stage
+// needs something reasonable to simulate against with no request body.
 const DEFAULT_PERSONA_MIX: PersonaTraitVector[] = [
   {
     role: "Impatient Founder",
@@ -156,10 +210,18 @@ app.get<{ Params: { id: string } }>(
   },
 );
 
-app.post<{ Body: { targetUrl?: string; attestation?: boolean } }>(
+app.post<{
+  Body: {
+    targetUrl?: string;
+    attestation?: boolean;
+    seededValues?: unknown;
+    allowActions?: unknown;
+  };
+}>(
   "/runs",
   async (request, reply) => {
-    const { targetUrl, attestation } = request.body ?? {};
+    const { targetUrl, attestation, seededValues, allowActions } =
+      request.body ?? {};
 
     if (attestation !== true) {
       return reply.status(400).send({ error: "attestation must be true" });
@@ -168,14 +230,54 @@ app.post<{ Body: { targetUrl?: string; attestation?: boolean } }>(
       return reply.status(400).send({ error: "targetUrl is required" });
     }
 
+    // CR-07 step 1. An operator-supplied map replaces the target default
+    // outright rather than merging — a partial merge would silently reinstate a
+    // value the operator had deliberately removed.
+    let resolvedSeededValues: SeededValues;
+    if (seededValues === undefined) {
+      resolvedSeededValues = defaultSeededValuesFor(targetUrl);
+    } else {
+      const parsed = SeededValuesSchema.safeParse(seededValues);
+      if (!parsed.success) {
+        return reply
+          .status(400)
+          .send({ error: "seededValues must be an object of string to string" });
+      }
+      resolvedSeededValues = parsed.data;
+    }
+
+    // TRD S4. The attestation gate above is what authorises an allowlist at
+    // all — CLAUDE.md §8: "exceptions are named explicitly by the attesting
+    // operator" — so this deliberately sits after that check and never before.
+    let resolvedAllowActions: AllowActions;
+    if (allowActions === undefined) {
+      resolvedAllowActions = defaultAllowActionsFor(targetUrl);
+    } else {
+      const parsed = AllowActionsSchema.safeParse(allowActions);
+      if (!parsed.success) {
+        return reply
+          .status(400)
+          .send({ error: "allowActions must be an array of strings" });
+      }
+      resolvedAllowActions = parsed.data;
+    }
+
     const run = await prisma.run.create({
       data: {
         projectId: "proj_meridian",
         userId: "usr_local",
         targetUrl,
-        status: "CRAWLING",
+        // App Flow §3 — the run enters CREATED; the orchestrator is what moves
+        // it to CRAWLING, so the status always reflects a stage that is
+        // actually running rather than one that is merely intended.
+        status: "CREATED",
         stage: "crawl",
-        config: JSON.stringify({ targetUrl, hasTargetCredentials: false }),
+        config: JSON.stringify({
+          targetUrl,
+          hasTargetCredentials: false,
+          seededValues: resolvedSeededValues,
+          allowActions: resolvedAllowActions,
+        }),
       },
     });
 
@@ -188,13 +290,26 @@ app.post<{ Body: { targetUrl?: string; attestation?: boolean } }>(
         attested: true,
         userAgent:
           typeof userAgentHeader === "string" ? userAgentHeader : null,
+        // Null, not "[]", when nothing was permitted — "no exceptions granted"
+        // and "an empty exception list was submitted" must stay distinguishable
+        // in an audit record.
+        allowActions: resolvedAllowActions.length
+          ? JSON.stringify(resolvedAllowActions)
+          : null,
       },
     });
 
-    // PRD v2 §0 / CLAUDE.md §5 — Scouts are cut, so the dummy scout that used
-    // to run alongside the crawl is gone. Nothing chains the stages yet; the
-    // orchestrator (PL-01) is what replaces it.
-    void runCrawl(run.id, targetUrl);
+    // PL-01 / TRD §4.2 — "return { runId } immediately, never block the HTTP
+    // response". The pipeline runs crawl → chorus → analysis → tour → done
+    // sequentially and awaited inside the orchestrator; this call is the only
+    // detachment, and it cannot reject (startRun installs its own catch).
+    startRun(run.id, {
+      targetUrl,
+      seededValues: resolvedSeededValues,
+      allowActions: resolvedAllowActions,
+      personaMix: DEFAULT_PERSONA_MIX,
+      populationSize: DEFAULT_POPULATION_SIZE,
+    });
 
     return { runId: run.id };
   },
@@ -226,79 +341,14 @@ app.post<{ Params: { id: string } }>("/runs/:id/tour", async (request, reply) =>
   if (!run) {
     return reply.status(404).send({ error: "run not found" });
   }
-
-  // Idempotent by design: TourStep rows carry human approval decisions
-  // (Backend Schema §"TOURS" — "steps are PATCHed individually ⇒ must be
-  // rows"). Re-generating on every visit to `?view=tour` would silently
-  // discard those decisions behind a fresh Tour row each time.
-  const existingTour = await prisma.tour.findFirst({
-    where: { runId },
-    orderBy: { version: "desc" },
-    include: { steps: { include: { finding: true }, orderBy: { order: "asc" } } },
-  });
-  if (existingTour) {
-    return { ...existingTour, steps: existingTour.steps.map(toCoreTourStep) };
-  }
-
   if (!run.graph) {
     return reply.status(400).send({ error: "run has no graph yet" });
   }
 
-  const graph: StateGraph = JSON.parse(run.graph);
-  const findingRows = await prisma.finding.findMany({ where: { runId } });
-  const findings = findingRows.map(toCoreFinding);
-
-  const steps = generateTourFromFindings(runId, findings, graph);
-
-  // generateTourFromFindings can skip a top finding it couldn't anchor, so
-  // `steps` is an order-preserving subsequence of this same sort — walk both
-  // with one cursor to recover which finding produced each surviving step.
-  const topFindings = [...findings].sort((a, b) => b.fixValue - a.fixValue).slice(0, 3);
-  let findingCursor = 0;
-  const stepsWithSourceFinding = steps.map((step) => {
-    while (
-      findingCursor < topFindings.length &&
-      topFindings[findingCursor].stateId !== step.stateId
-    ) {
-      findingCursor += 1;
-    }
-    const sourceFindingId = topFindings[findingCursor]?.id ?? null;
-    findingCursor += 1;
-    return { ...step, sourceFindingId };
-  });
-
-  const tour = await prisma.$transaction(async (tx) => {
-    const createdTour = await tx.tour.create({
-      data: {
-        runId: run.id,
-        projectId: run.projectId,
-        name: `Tour for ${run.label ?? run.targetUrl}`,
-        status: "DRAFT",
-      },
-    });
-
-    for (const step of stepsWithSourceFinding) {
-      await tx.tourStep.create({
-        data: {
-          tourId: createdTour.id,
-          order: step.order,
-          sourceFindingId: step.sourceFindingId,
-          anchor: JSON.stringify(step.anchor),
-          title: step.title,
-          body: step.body,
-          placement: step.placement,
-          advanceOn: JSON.stringify({ type: "click" }),
-          status: step.status,
-        },
-      });
-    }
-
-    return tx.tour.findUniqueOrThrow({
-      where: { id: createdTour.id },
-      include: { steps: { include: { finding: true }, orderBy: { order: "asc" } } },
-    });
-  });
-
+  // The orchestrator's tour stage already created this during the run;
+  // createTourForRun is idempotent and returns the existing rows rather than
+  // regenerating over the human approval decisions they carry.
+  const tour = await createTourForRun(runId);
   return { ...tour, steps: tour.steps.map(toCoreTourStep) };
 });
 
@@ -416,13 +466,45 @@ app.post<{ Params: { id: string } }>("/runs/:id/chorus", async (request, reply) 
     completionRate: result.completionRate,
   });
 
-  // Analysis reads Run.metrics back out of SQLite (not `result` directly),
-  // so it must run after the update above has committed — fire-and-forget,
-  // same contract as runCrawl in POST /runs: self-contained error handling,
-  // progress observable only via SSE, not via this response.
-  void runAnalysis(runId);
+  // A manual re-run hook, not part of the pipeline — the orchestrator already
+  // ran chorus → analysis → tour on its own (PL-01). Awaited and guarded
+  // rather than `void`-called: runAnalysis now throws instead of swallowing,
+  // so detaching it here would surface as an unhandled rejection.
+  try {
+    await runAnalysis(runId);
+    await createTourForRun(runId);
+  } catch (err) {
+    request.log.error({ err, runId }, "manual chorus re-run: analysis failed");
+    return reply.status(500).send({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   return result;
+});
+
+// App Flow §3 — "Cancel is available in the top bar while running:
+// DELETE /runs/:id → CANCELLED, partial graph retained and viewable."
+app.delete<{ Params: { id: string } }>("/runs/:id", async (request, reply) => {
+  const runId = request.params.id;
+  const run = await prisma.run.findUnique({
+    where: { id: runId },
+    select: { id: true, status: true },
+  });
+  if (!run) {
+    return reply.status(404).send({ error: "run not found" });
+  }
+
+  // The orchestrator sets the terminal status itself once the flag is seen at
+  // the next unit boundary, so this does not write the status directly — doing
+  // both would race the pipeline's own final write.
+  if (!cancelRun(runId)) {
+    return reply
+      .status(409)
+      .send({ error: `run is not in progress (status ${run.status})` });
+  }
+
+  return { runId, cancelling: true };
 });
 
 try {

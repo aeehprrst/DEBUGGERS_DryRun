@@ -7,6 +7,7 @@ import {
   calculateFrictionScore,
   calculateHesitation,
   calculateLoop,
+  jargonScoreForNames,
 } from "@dry-run/core";
 import type { ActionEdge, AppState, PersonaTraitVector, StateGraph, StateMetrics } from "@dry-run/core";
 
@@ -31,15 +32,8 @@ const HARD_STEP_CEILING = 30;
 // Offline fallback per TRD §5.6 — a real cached jargon score (reka-edge) is
 // used when a state's staticSignals already carries one; this list is only
 // the fallback path, which is the only path this codebase has today.
-const JARGON_WORDS = new Set([
-  "api", "webhook", "endpoint", "payload", "idempotency", "backfill",
-  "oauth", "sso", "sdk", "cli", "token", "credential", "provisioning",
-  "namespace", "schema", "instance", "cluster", "deploy", "sandbox",
-  "environment", "middleware", "authentication", "authorization",
-  "encryption", "certificate", "dns", "cname", "callback", "async",
-  "queue", "cache", "index", "migration", "regex", "json", "xml",
-  "rest", "graphql", "latency", "throughput", "rate limit", "workspace",
-]);
+// JARGON_WORDS moved to @dry-run/core (CR-12): the crawler's jargonScore
+// signal and this walk model must score a screen identically.
 
 export type ChorusResults = {
   metrics: Record<string, StateMetrics>;
@@ -93,17 +87,7 @@ export function jargonLoad(state: AppState): number {
     return Math.min(1, Math.max(0, cached));
   }
 
-  const names = state.a11yTree.map((n) => n.name).filter((n) => n.trim().length > 0);
-  if (names.length === 0) return 0;
-
-  const flagged = names.filter((name) =>
-    name
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .some((word) => JARGON_WORDS.has(word)),
-  ).length;
-
-  return flagged / names.length;
+  return jargonScoreForNames(state.a11yTree.map((n) => n.name));
 }
 
 const CTA_VERB_PATTERN =
