@@ -149,7 +149,11 @@ export type TaskDefinition = z.infer<typeof TaskDefinitionSchema>;
 
 // ---------- Metrics ----------
 
-export const StateMetricsSchema = z.object({
+// The metric fields themselves, split out from `StateMetricsSchema` so that a
+// per-segment record (CH-04, below) can reuse the identical shape without the
+// two schemas referring to each other in a cycle. Segments do not nest inside
+// segments, so the base is exactly the right shape for one.
+export const StateMetricsBaseSchema = z.object({
   frictionScore: z.number().min(0).max(100),
   fixValue: z.number().min(0).max(1),
   dropout: z.number(),
@@ -166,6 +170,51 @@ export const StateMetricsSchema = z.object({
   reach: z.number().min(0).max(1),
   confidence: z.number().min(0).max(1),
   provenance: Provenance,
+});
+export type StateMetricsBase = z.infer<typeof StateMetricsBaseSchema>;
+
+/**
+ * CH-04 — one segment's slice of a state's metrics (PRD §6.1 computed over a
+ * subset of the population rather than all of it). PRD §6.4's `ExclusionDelta`
+ * is the difference between one of these and the baseline segment's, and is
+ * **not** computed here (AN-07).
+ *
+ * `metrics` is nullable for the same reason `AtlasNode.metrics` is: below the
+ * caller's minimum sample this segment did not produce a measurement, and a
+ * zero-filled object would read as "this segment sailed through" when what
+ * happened is that almost none of them got here. The counts are recorded either
+ * way so a consumer can say *why* it is null rather than just showing an em
+ * dash (CLAUDE.md §6.5).
+ */
+export const SegmentStateMetricsSchema = z.object({
+  /**
+   * Distinct personas from this segment that entered the state — the sample
+   * size, and what the minimum-sample gate is applied to.
+   */
+  personas: z.number().int().min(0),
+  /**
+   * Arrival *events*, which is what `reach` and `confidence` are derived from.
+   * A looping state can be arrived at more than once by the same persona, so
+   * this is >= `personas` and is not a headcount.
+   */
+  entered: z.number().int().min(0),
+  /** Personas from this segment simulated at all — the denominator of `reach`. */
+  simulated: z.number().int().min(0),
+  metrics: StateMetricsBaseSchema.nullable(),
+});
+export type SegmentStateMetrics = z.infer<typeof SegmentStateMetricsSchema>;
+
+export const StateMetricsSchema = StateMetricsBaseSchema.extend({
+  /**
+   * CH-04 — the same metrics recomputed over each named segment (`segments.ts`).
+   * Keyed by `SegmentId`, typed here as a plain string only because `types.ts`
+   * must not import `segments.ts`, which imports this file. The producer
+   * (Chorus) keys it from `SEGMENTS`, so the keys are always `SegmentId`.
+   *
+   * Optional, not nullable: a run recorded before CH-04 has no key here at all,
+   * and absent must stay distinguishable from "computed, and empty".
+   */
+  segments: z.record(z.string(), SegmentStateMetricsSchema).optional(),
 });
 export type StateMetrics = z.infer<typeof StateMetricsSchema>;
 

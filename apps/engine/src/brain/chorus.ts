@@ -1,15 +1,24 @@
+// The six PRD §6.1 formulas and §6.2's friction score are still the ones in
+// `@dry-run/core`; they are now reached through `buildStateMetrics`, which
+// applies them in the same order, so the population and every CH-04 segment
+// share one implementation instead of two copies that can drift.
 import {
-  calculateBacktrack,
-  calculateBlocked,
-  calculateDeadClick,
-  calculateDropout,
-  calculateFixValue,
-  calculateFrictionScore,
-  calculateHesitation,
-  calculateLoop,
+  SEGMENTS,
+  buildSegmentStateMetrics,
+  buildStateMetrics,
   jargonScoreForNames,
+  segmentsForPersona,
 } from "@dry-run/core";
-import type { ActionEdge, AppState, PersonaTraitVector, StateGraph, StateMetrics } from "@dry-run/core";
+import type {
+  ActionEdge,
+  AppState,
+  PersonaTraitVector,
+  SegmentId,
+  SegmentStateMetrics,
+  StateGraph,
+  StateMetrics,
+  StateMetricsCounters,
+} from "@dry-run/core";
 
 // TRD §5.6 — zero LLM calls, zero network, pure TypeScript, deterministic.
 // Calibration (fitting the six free weights against scout-observed dropout)
@@ -33,6 +42,21 @@ const WEIGHTS = {
 // own patience budget — this is just the safety net if it doesn't.
 const MAX_STEP_BUFFER = 5;
 const HARD_STEP_CEILING = 30;
+
+// CH-04 — the fewest distinct personas from a segment that must have entered a
+// state before that segment's metrics are reported for it. Below this the
+// segment's record carries its counts and `metrics: null`, never zeros: a
+// dropout ratio over a handful of walks is a rounding artifact, and printing it
+// as 0.00 would claim a screen was easy for a segment we barely saw on it. Same
+// instinct as `jargonScoreForNames` returning null below four names.
+//
+// Declared, not fitted — there is no calibration subsystem to fit it with
+// (CLAUDE.md §5). 30 is the conventional floor at which a sample proportion is
+// reportable at all: below it the standard error on a mid-range proportion
+// exceeds ~0.09, which is the same order as the ExclusionDelta values PRD §6.4
+// asks us to publish, so a thinner sample cannot support the claim the number
+// would be making.
+const MIN_SEGMENT_SAMPLE_PERSONAS = 30;
 
 // Offline fallback per TRD §5.6 — a real cached jargon score (reka-edge) is
 // used when a state's staticSignals already carries one; this list is only
@@ -481,6 +505,29 @@ function newAccumulator(): StateAccumulator {
   };
 }
 
+/** The accumulator as `@dry-run/core` reduces it. Field names only. */
+function countersOf(acc: StateAccumulator): StateMetricsCounters {
+  return {
+    entered: acc.entered,
+    terminated: acc.dropout,
+    blocked: acc.blocked,
+    visitsPerPersona: acc.visitCounts,
+    deadInteractions: acc.deadInteractions,
+    totalInteractions: acc.totalInteractions,
+    stepsBeforeGoalAction: acc.stepsBeforeAdvance,
+    reverseEdgeTraversals: acc.reverseEdgeTraversals,
+    totalExits: acc.totalExits,
+  };
+}
+
+function newAccumulatorMap(graph: StateGraph): Map<string, StateAccumulator> {
+  const map = new Map<string, StateAccumulator>();
+  for (const stateId of Object.keys(graph.nodes)) {
+    map.set(stateId, newAccumulator());
+  }
+  return map;
+}
+
 export function runChorusSimulation(
   graph: StateGraph,
   personaMix: PersonaTraitVector[],
@@ -512,11 +559,37 @@ export function runChorusSimulation(
   const counts = allocatePersonaCounts(personaMix, totalPersonas);
   const random = mulberry32(0xc0ffee);
 
+  // CH-04 — one accumulator map per named segment, filled in the *same* pass as
+  // the overall one. Per L2 the simulation is not re-run per segment: each walk
+  // already happened, and a walk simply lands in the overall bucket plus every
+  // segment bucket its archetype qualifies for. Membership is a property of the
+  // archetype, so it is resolved once here rather than per persona.
+  const segmentIds = SEGMENTS.map((s) => s.id);
+  const segmentAccumulators = new Map<SegmentId, Map<string, StateAccumulator>>(
+    segmentIds.map((id) => [id, newAccumulatorMap(graph)]),
+  );
+  const segmentSimulated = new Map<SegmentId, number>(
+    segmentIds.map((id) => [id, 0]),
+  );
+
   let completed = 0;
   let simulatedTotal = 0;
 
   personaMix.forEach((persona, archetypeIndex) => {
     const personaCount = counts[archetypeIndex] ?? 0;
+
+    // Overall first, then this archetype's segments. `targets[0]` is the
+    // overall map and the walk gates on it exactly as it used to gate on the
+    // single map, so the overall tallies are untouched by anything here.
+    const memberOf = segmentsForPersona(persona);
+    const targets: Map<string, StateAccumulator>[] = [
+      accumulators,
+      ...memberOf.map((id) => segmentAccumulators.get(id)!),
+    ];
+    for (const id of memberOf) {
+      segmentSimulated.set(id, (segmentSimulated.get(id) ?? 0) + personaCount);
+    }
+
     for (let i = 0; i < personaCount; i++) {
       simulatedTotal += 1;
       const outcome = simulateOnePersona(
@@ -526,7 +599,7 @@ export function runChorusSimulation(
         navigableByFrom,
         hopDistances,
         irreversibility,
-        accumulators,
+        targets,
         random,
       );
       if (outcome !== "blocked") completed += 1;
@@ -535,47 +608,30 @@ export function runChorusSimulation(
 
   const metrics: Record<string, StateMetrics> = {};
   for (const [stateId, acc] of accumulators) {
-    const dropout = calculateDropout(acc.entered, acc.dropout);
-    const blocked = calculateBlocked(acc.entered, acc.blocked);
-    const loop = calculateLoop(acc.visitCounts);
-    const deadClick = calculateDeadClick(acc.deadInteractions, acc.totalInteractions);
-    const hesitation = calculateHesitation(acc.stepsBeforeAdvance);
-    const backtrack = calculateBacktrack(acc.reverseEdgeTraversals, acc.totalExits);
+    // The six PRD §6.1 formulas and the §6.2 friction score now live in
+    // `buildStateMetrics` (@dry-run/core) so the population and every segment
+    // are reduced by one implementation. The arithmetic is unchanged.
+    //
+    // Provenance stays "modeled" for both: CH-05 is a separate item, and this
+    // task must not quietly start assigning it (L6).
+    const base = buildStateMetrics(countersOf(acc), simulatedTotal, "modeled");
 
-    const frictionScore = calculateFrictionScore({
-      dropout,
-      blocked,
-      loop,
-      deadClick,
-      hesitation,
-      backtrack,
-    });
+    // CH-04 — the same reduction over each segment's bucket. Every segment gets
+    // a record even when it is null, so a consumer can distinguish "this
+    // segment barely reached this screen" from "we never looked".
+    const segments: Record<string, SegmentStateMetrics> = {};
+    for (const id of segmentIds) {
+      const segmentAcc = segmentAccumulators.get(id)?.get(stateId);
+      if (!segmentAcc) continue;
+      segments[id] = buildSegmentStateMetrics(
+        countersOf(segmentAcc),
+        segmentSimulated.get(id) ?? 0,
+        "modeled",
+        MIN_SEGMENT_SAMPLE_PERSONAS,
+      );
+    }
 
-    // No Analysis stage yet to supply real impact/reach/confidence — reach
-    // is share of population that arrived here, impact is normalised
-    // friction, confidence scales with sample size. A defensible proxy, not
-    // a faked constant. `entered` counts arrival *events*, not unique
-    // personas — a heavily-looped state can rack up more arrivals than
-    // there are personas, so this must be clamped to stay a fraction.
-    const reach = simulatedTotal > 0 ? Math.min(1, acc.entered / simulatedTotal) : 0;
-    const impact = frictionScore / 100;
-    const confidence = Math.min(1, acc.entered / 50);
-    const fixValue = calculateFixValue(impact, reach, confidence);
-
-    metrics[stateId] = {
-      frictionScore,
-      fixValue,
-      dropout,
-      blocked,
-      loop,
-      deadClick,
-      hesitation,
-      backtrack,
-      impact,
-      reach,
-      confidence,
-      provenance: "modeled",
-    };
+    metrics[stateId] = { ...base, segments };
   }
 
   return {
@@ -592,7 +648,13 @@ function simulateOnePersona(
   navigableByFrom: Map<string, ActionEdge[]>,
   hopDistances: Map<string, number>,
   irreversibility: Map<string, number>,
-  accumulators: Map<string, StateAccumulator>,
+  // CH-04 — every accumulator map this walk contributes to. `targets[0]` is the
+  // overall population; the rest are the segments this persona's archetype
+  // belongs to, and a persona may belong to none or several (segments.ts
+  // overlaps deliberately). Bucketing only: the walk below is untouched, no
+  // draw is added, removed or reordered, and `targets[0]` receives exactly the
+  // sequence of mutations the single map used to receive.
+  targets: readonly Map<string, StateAccumulator>[],
   random: () => number,
 ): "success" | "dropout" | "blocked" {
   // PS-01 — patience is now two budgets. `maxSteps` is enforced here as a hard
@@ -609,23 +671,36 @@ function simulateOnePersona(
   let steps = 0;
   let hesitationCounter = 0;
 
+  // Every accumulator for a state, across the overall map and this persona's
+  // segment maps. The overall map is the gate — it holds a key for every node,
+  // and a state absent from it is absent from all of them — so the early return
+  // below is the same one the single-map version made.
+  const accsAt = (stateId: string): StateAccumulator[] => {
+    const out: StateAccumulator[] = [];
+    for (const target of targets) {
+      const acc = target.get(stateId);
+      if (acc) out.push(acc);
+    }
+    return out;
+  };
+
   const enter = (stateId: string) => {
-    const acc = accumulators.get(stateId);
-    if (!acc) return;
-    acc.entered += 1;
+    const accs = accsAt(stateId);
+    if (accs.length === 0) return;
+    for (const acc of accs) acc.entered += 1;
     visited.set(stateId, (visited.get(stateId) ?? 0) + 1);
   };
 
   enter(currentId);
 
   while (steps < stepCeiling) {
-    const acc = accumulators.get(currentId);
+    const accs = accsAt(currentId);
     const state = graph.nodes[currentId];
     const edges = navigableByFrom.get(currentId) ?? [];
 
     if (!state || edges.length === 0) {
       // A true sink — this is a completed journey, not a failure.
-      recordVisitCounts(accumulators, visited);
+      recordVisitCounts(targets, visited);
       return "success";
     }
 
@@ -637,8 +712,8 @@ function simulateOnePersona(
       // Every way forward is unreachable for this persona even though the
       // screen has out-edges. That is being blocked by the interface, not
       // arriving at the end of the flow, and the two must not be conflated.
-      if (acc) acc.blocked += 1;
-      recordVisitCounts(accumulators, visited);
+      for (const acc of accs) acc.blocked += 1;
+      recordVisitCounts(targets, visited);
       return "blocked";
     }
 
@@ -675,11 +750,11 @@ function simulateOnePersona(
     const choice = weightedPick(probs, random());
 
     if (choice === perceived.length) {
-      if (acc) {
+      for (const acc of accs) {
         acc.dropout += 1;
         acc.stepsBeforeAdvance.push(hesitationCounter);
       }
-      recordVisitCounts(accumulators, visited);
+      recordVisitCounts(targets, visited);
       return "dropout";
     }
 
@@ -688,7 +763,7 @@ function simulateOnePersona(
     const isAdvancing = Number.isFinite(dTo) && dTo < dCurrent;
     const isSelfLoop = chosenEdge.toStateId === currentId;
 
-    if (acc) {
+    for (const acc of accs) {
       acc.totalInteractions += 1;
       if (isSelfLoop) acc.deadInteractions += 1;
       acc.totalExits += 1;
@@ -696,7 +771,7 @@ function simulateOnePersona(
     }
 
     if (isAdvancing) {
-      if (acc) acc.stepsBeforeAdvance.push(hesitationCounter);
+      for (const acc of accs) acc.stepsBeforeAdvance.push(hesitationCounter);
       hesitationCounter = 0;
     } else {
       hesitationCounter += 1;
@@ -707,14 +782,18 @@ function simulateOnePersona(
     enter(currentId);
   }
 
-  const finalAcc = accumulators.get(currentId);
-  if (finalAcc) finalAcc.blocked += 1;
-  recordVisitCounts(accumulators, visited);
+  for (const acc of accsAt(currentId)) acc.blocked += 1;
+  recordVisitCounts(targets, visited);
   return "blocked";
 }
 
-function recordVisitCounts(accumulators: Map<string, StateAccumulator>, visited: Map<string, number>) {
-  for (const [stateId, count] of visited) {
-    accumulators.get(stateId)?.visitCounts.push(count);
+function recordVisitCounts(
+  targets: readonly Map<string, StateAccumulator>[],
+  visited: Map<string, number>,
+) {
+  for (const target of targets) {
+    for (const [stateId, count] of visited) {
+      target.get(stateId)?.visitCounts.push(count);
+    }
   }
 }
