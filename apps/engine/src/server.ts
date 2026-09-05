@@ -31,6 +31,10 @@ import {
 import { createTourForRun } from "./usher/persist.js";
 import { bootDatabase, prisma, toCoreFinding, toCoreTourStep } from "./db.js";
 import { emitRunEvent, subscribeToRun } from "./sse.js";
+// CR-10 — the SSRF guard and its escape hatch. New module; nothing existing moved.
+import { checkTargetUrl, privateTargetsAllowed } from "./safety/ssrf.js";
+import { checkRobots } from "./safety/robots.js";
+import { replayFixtureIdFromEnv } from "./replay.js";
 
 // TRD §5.8 — the interface's `/api/*` rewrite proxies through Next.js, so a
 // request's Host header as seen here can't be trusted to reconstruct this
@@ -102,7 +106,7 @@ const app = Fastify({ logger: true });
 
 // @fastify/cors' dynamic delegator: it sees the request, so the allowance can
 // be scoped per route rather than per server.
-await app.register(cors, () => (request, callback) => {
+await app.register(cors, () => (request: { method: string; url: string }, callback: (err: Error | null, options: { origin: string[] | boolean }) => void) => {
   const isTourExport =
     (request.method === "GET" || request.method === "OPTIONS") &&
     TOUR_EXPORT_PATH.test(request.url);
@@ -144,6 +148,10 @@ app.get<{ Params: { id: string } }>("/runs/:id", async (request, reply) => {
     // The replay-mode banner is the disclosure L5 requires and it must be
     // available on every view of the run, not only while the crawl streams.
     replayFixtureId: run.replayFixtureId ?? null,
+    // CR-10 / §8 — what robots.txt said, so the claim "we respect it" can be
+    // stated with the actual answer attached. `null` means the check did not
+    // run (a replayed run, or a run predating CR-10); it never means "allowed".
+    robots: run.robotsDecision ? JSON.parse(run.robotsDecision) : null,
     // AN-07 — the run-level ExclusionIndex, on the existing run endpoint rather
     // than a new one. Three distinct states reach the client and must stay
     // distinguishable: `null` means analysis has not run (or predates AN-07);
@@ -242,6 +250,34 @@ app.post<{
       return reply.status(400).send({ error: "targetUrl is required" });
     }
 
+    // CR-10 / CLAUDE.md §8 — the SSRF guard runs here, before the run row
+    // exists, so a rejected target leaves nothing behind and the operator is
+    // told at submission rather than by a run that dies mid-crawl.
+    //
+    // L5 — a replayed run is exempt, and this is a statement about the network
+    // rather than a convenience: `runCrawl` returns from the fixture before
+    // `chromium.launch()` is ever called, so a replay issues no request to the
+    // target at all. There is no host to guard. Guarding it anyway would mean
+    // the stage demo — a replay of Meridian on localhost — could be refused by
+    // a check protecting against traffic that provably never happens.
+    const replayFixtureId = replayFixtureIdFromEnv();
+    if (!replayFixtureId && !privateTargetsAllowed()) {
+      const check = await checkTargetUrl(targetUrl);
+      if (!check.ok) {
+        request.log.warn(
+          { targetUrl, reason: check.reason },
+          "CR-10 SSRF guard rejected a target",
+        );
+        return reply.status(400).send({
+          error: "target rejected by the SSRF guard",
+          reason: check.reason,
+          // Named explicitly: the operator running Meridian locally hits this
+          // on their first run and the fix should not require reading source.
+          hint: "Set ALLOW_PRIVATE_TARGETS=1 to crawl a private or loopback address. Never set it in a shipped default.",
+        });
+      }
+    }
+
     // CR-07 step 1. An operator-supplied map replaces the target default
     // outright rather than merging — a partial merge would silently reinstate a
     // value the operator had deliberately removed.
@@ -310,6 +346,39 @@ app.post<{
           : null,
       },
     });
+
+    // CR-10 / CLAUDE.md §8 — "Respect robots.txt by default."
+    //
+    // After the run row exists, because the request carries `X-DryRun-Run-Id`
+    // (§8 again) and there is no id to send before this point. That ordering
+    // means a disallowed target still leaves a run behind — deliberately: it is
+    // the audit record showing we asked and were told no, which is worth more
+    // than a clean database.
+    //
+    // Skipped on replay for the same reason as the SSRF guard: no request is
+    // made to the target, so there is nothing to ask permission for. The column
+    // stays NULL and the absence is readable rather than implied.
+    if (!replayFixtureId) {
+      const robots = await checkRobots(targetUrl, run.id);
+      await prisma.run.update({
+        where: { id: run.id },
+        data: { robotsDecision: JSON.stringify(robots) },
+      });
+
+      if (!robots.allowed) {
+        await prisma.run.update({
+          where: { id: run.id },
+          data: { status: "FAILED", stage: "crawl" },
+        });
+        request.log.warn({ targetUrl, robots }, "CR-10 robots.txt disallowed the target");
+        return reply.status(403).send({
+          runId: run.id,
+          error: "target disallows crawling in robots.txt",
+          reason: robots.detail,
+          rule: robots.rule,
+        });
+      }
+    }
 
     // PL-01 / TRD §4.2 — "return { runId } immediately, never block the HTTP
     // response". The pipeline runs crawl → chorus → analysis → tour → done

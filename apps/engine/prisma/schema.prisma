@@ -82,6 +82,14 @@ model Run {
   // computed by the crawl and thrown away before this column existed.
   replayFixtureId String?
 
+  // CR-10 / CLAUDE.md §8 — the robots.txt decision for this run's target, as a
+  // RobotsDecision JSON blob (src/safety/robots.ts). NULLABLE and additive
+  // (§6.9): NULL means the check did not run, which is the truth for every run
+  // predating CR-10 and for every replayed run, since a replay issues no
+  // request to the target and so has no robots.txt to respect. A missing
+  // robots.txt is recorded as status "absent" and is NOT a disallow.
+  robotsDecision String?
+
   // ── denormalised counters, for list views without parsing blobs ──
   stateCount       Int     @default(0)
   actionCount      Int     @default(0)

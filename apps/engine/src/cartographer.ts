@@ -35,6 +35,28 @@ import { emitRunEvent } from "./sse.js";
 // CRAWL_BUDGET` (TRD §4.1 rule 3), so it must be the same number, not a copy.
 export const CRAWL_BUDGET = 15;
 const SETTLE_MS = 300;
+
+// CR-10 / CLAUDE.md §8 — "Identify ourselves: User-Agent: DryRun-Bot/1.0 and an
+// X-DryRun-Run-Id header on every request."
+//
+// Both are set as browser-context options rather than on individual
+// navigations, which is what makes "every request" true: Playwright applies
+// them to subresources, XHR and fetch as well as the top-level document. A
+// per-goto header would identify us on six requests and leave the other few
+// hundred anonymous.
+//
+// The run id travels with them so a target's operator reading their access log
+// can tie a burst of traffic to one run and ask us about it. That is the whole
+// point of identifying: not a courtesy string, an accountable one.
+export const CRAWLER_USER_AGENT = "DryRun-Bot/1.0";
+
+export function crawlerPageOptions(runId: string, viewport: { width: number; height: number }) {
+  return {
+    viewport,
+    userAgent: CRAWLER_USER_AGENT,
+    extraHTTPHeaders: { "X-DryRun-Run-Id": runId },
+  };
+}
 // A single-page target can schedule its route change on a timer instead of
 // doing it in the click handler — Meridian's /connect navigates 700 ms after a
 // successful submit — and a client-side route change fires no `load` event at
@@ -349,7 +371,7 @@ async function measureMobileViewport(
   pathByStateId: Map<string, PathStep[]>,
   fill: Filler,
 ): Promise<{ measured: number; skipped: string[] }> {
-  const page = await browser.newPage({ viewport: CRAWL_VIEWPORTS["mobile-390"] });
+  const page = await browser.newPage(crawlerPageOptions(runId, CRAWL_VIEWPORTS["mobile-390"]));
   const skipped: string[] = [];
   let measured = 0;
 
@@ -505,13 +527,14 @@ async function findSubmitControl(
 
 async function probeValidation(
   browser: Browser,
+  runId: string,
   url: string,
   graph: StateGraph,
   pathByStateId: Map<string, PathStep[]>,
   fill: Filler,
   allowActions: AllowActions,
 ): Promise<{ probed: number; rejected: number }> {
-  const page = await browser.newPage({ viewport: CRAWL_VIEWPORTS["laptop-1280"] });
+  const page = await browser.newPage(crawlerPageOptions(runId, CRAWL_VIEWPORTS["laptop-1280"]));
   let probed = 0;
   let rejected = 0;
 
@@ -711,7 +734,7 @@ export async function runCrawl(
   try {
     // CR-09 — the desktop pass viewport is now declared, not inherited from
     // Playwright's default, so both passes read from one source.
-    const page = await browser.newPage({ viewport: CRAWL_VIEWPORTS["laptop-1280"] });
+    const page = await browser.newPage(crawlerPageOptions(runId, CRAWL_VIEWPORTS["laptop-1280"]));
     const fillValue = makeSyntheticFiller(runId, options.seededValues);
     // The replay path per state, retained so the mobile pass can re-reach each
     // state. A state whose only route is a click (Meridian's modal, where D5
@@ -851,7 +874,7 @@ export async function runCrawl(
     // which is a durable record rather than a line that scrolls past, and the
     // event union has no non-error informational variant to widen without
     // touching the interface's contract.
-    await probeValidation(browser, url, graph, pathByStateId, fillValue, allowActions);
+    await probeValidation(browser, runId, url, graph, pathByStateId, fillValue, allowActions);
 
     // CR-09 — every state now carries its desktop measurement under its own
     // viewport key as well, so the two passes are read the same way.
