@@ -83,7 +83,7 @@ function ScreenshotMaterial({ path }: { path: string }) {
 }
 
 function PlaceholderMaterial() {
-  return <meshBasicMaterial color="#122333" side={THREE.DoubleSide} />;
+  return <meshBasicMaterial color="#17303E" side={THREE.DoubleSide} />;
 }
 
 function Node3D({
@@ -109,12 +109,12 @@ function Node3D({
     meshRef.current.rotation.y = Math.atan2(dx, dz);
   });
 
-  const ringColor = isSelected ? "#FF5A00" : "#22d3ee";
+  const ringColor = isSelected ? "#FF7A45" : "#8FC7D6";
 
   return (
     <group position={position}>
       {/* plumb line down to the chart plane — makes elevation legible */}
-      <Line points={[[0, 0, 0], [0, -position[1], 0]]} color="#475569" lineWidth={1} transparent opacity={0.35} />
+      <Line points={[[0, 0, 0], [0, -position[1], 0]]} color="#6E7A80" lineWidth={1} transparent opacity={0.35} />
 
       <mesh
         ref={meshRef}
@@ -160,7 +160,7 @@ export default function Atlas3D({
   const selectedState = nodes.find((n) => n.id === selectedId) ?? null;
 
   return (
-    <div className="relative h-full min-h-[440px] overflow-hidden rounded-lg border border-rule bg-chart-shelf">
+    <div className="relative h-full min-h-[440px] overflow-hidden rounded-lg border border-rule bg-shelf">
       {nodes.length === 0 ? (
         <div className="flex h-full min-h-[440px] items-center justify-center text-sm text-ink-2">
           Waiting for the crawler to find the first screen…
@@ -169,7 +169,7 @@ export default function Atlas3D({
         <Canvas camera={{ position: [0, 6, 16], fov: 45 }}>
           <ambientLight intensity={0.6} color="#4E7E8C" />
           <directionalLight position={[4, 8, 6]} intensity={0.7} color="#EDE4D3" />
-          <gridHelper args={[40, 40, "#1A3247", "#0A1620"]} />
+          <gridHelper args={[40, 40, "#1F3D4D", "#0A1620"]} />
 
           {positionedNodes.map((simNode) => {
             const state = nodeById.get(simNode.id);
@@ -205,7 +205,7 @@ export default function Atlas3D({
                 start={[source.x, source.y, source.z]}
                 end={[target.x, target.y, target.z]}
                 mid={mid}
-                color="#22d3ee"
+                color="#8FC7D6"
                 lineWidth={1}
                 transparent
                 opacity={0.3}

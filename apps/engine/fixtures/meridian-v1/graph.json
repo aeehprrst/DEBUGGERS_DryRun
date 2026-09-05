@@ -1,0 +1,2104 @@
+{
+  "nodes": {
+    "s0": {
+      "id": "s0",
+      "fingerprint": "a7e94ab80f271010cda919014c4f614a7085bdcd470d6366bf6d6eede560f7e1",
+      "url": "http://localhost:5173/signup",
+      "title": "Meridian",
+      "screenshotPath": "/static/runs/cmto9k6l30001rfnk1lkwzwml/s0.jpg",
+      "a11yTree": [
+        {
+          "ref": "e3",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 548
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "e4",
+          "role": "banner",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 60
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "e5",
+          "role": "main",
+          "name": "",
+          "box": {
+            "x": 400,
+            "y": 60,
+            "width": 480,
+            "height": 488
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "e6",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 424,
+            "y": 108,
+            "width": 432,
+            "height": 344
+          },
+          "landmark": "main",
+          "ordinal": 1
+        },
+        {
+          "ref": "e7",
+          "role": "heading",
+          "name": "Create your account",
+          "box": {
+            "x": 457,
+            "y": 141,
+            "width": 366,
+            "height": 33
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "e8",
+          "role": "paragraph",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 182,
+            "width": 366,
+            "height": 21
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "e9",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 227,
+            "width": 366,
+            "height": 192
+          },
+          "landmark": "main",
+          "ordinal": 2
+        },
+        {
+          "ref": "e10",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 227,
+            "width": 366,
+            "height": 61
+          },
+          "landmark": "main",
+          "ordinal": 3
+        },
+        {
+          "ref": "e11",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 227,
+            "width": 366,
+            "height": 20
+          },
+          "landmark": "main",
+          "ordinal": 4
+        },
+        {
+          "ref": "e12",
+          "role": "textbox",
+          "name": "Email",
+          "box": {
+            "x": 457,
+            "y": 251,
+            "width": 366,
+            "height": 37
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "e13",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 304,
+            "width": 366,
+            "height": 61
+          },
+          "landmark": "main",
+          "ordinal": 5
+        },
+        {
+          "ref": "e14",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 304,
+            "width": 366,
+            "height": 20
+          },
+          "landmark": "main",
+          "ordinal": 6
+        },
+        {
+          "ref": "e15",
+          "role": "textbox",
+          "name": "Password",
+          "box": {
+            "x": 457,
+            "y": 327,
+            "width": 366,
+            "height": 37
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "e16",
+          "role": "button",
+          "name": "Sign up",
+          "box": {
+            "x": 457,
+            "y": 380,
+            "width": 81,
+            "height": 39
+          },
+          "landmark": "main",
+          "ordinal": 0
+        }
+      ],
+      "staticSignals": {
+        "interactiveCount": 3,
+        "belowFoldPrimaryCta": false,
+        "belowFoldInteractives": [],
+        "tabbableNames": [
+          "Email",
+          "Password",
+          "Sign up"
+        ],
+        "offscreenInteractives": [],
+        "primaryCtaContrastRatio": 4.55,
+        "primaryCtaLowContrast": false,
+        "competingCtas": false,
+        "competingCtaNames": [],
+        "errorTextContrast": null,
+        "errorTextLowContrast": false,
+        "errorTextInA11yTree": null,
+        "hasAriaLive": false,
+        "deadEndControl": false,
+        "deadEndControlNames": [],
+        "jargonScore": 0,
+        "jargonUnmeasuredReason": null,
+        "jargonProductVocabulary": [
+          "your"
+        ],
+        "validationProbed": true,
+        "validationRejected": false,
+        "validationProbeSkippedReason": null,
+        "validationProbeValues": {
+          "Email": "dryrun-invalid@example.invalid",
+          "Password": "!"
+        },
+        "validationProbeNote": "submitting via \"Sign up\" advanced to a different state, so this screen did not reject the value"
+      },
+      "viewports": {
+        "laptop-1280": {
+          "interactiveCount": 3,
+          "belowFoldPrimaryCta": false,
+          "belowFoldInteractives": [],
+          "tabbableNames": [
+            "Email",
+            "Password",
+            "Sign up"
+          ],
+          "offscreenInteractives": [],
+          "primaryCtaContrastRatio": 4.55,
+          "primaryCtaLowContrast": false,
+          "competingCtas": false,
+          "competingCtaNames": [],
+          "errorTextContrast": null,
+          "errorTextLowContrast": false,
+          "errorTextInA11yTree": null,
+          "hasAriaLive": false,
+          "deadEndControl": false,
+          "deadEndControlNames": [],
+          "jargonScore": 0,
+          "jargonUnmeasuredReason": null,
+          "jargonProductVocabulary": [
+            "your"
+          ],
+          "validationProbed": true,
+          "validationRejected": false,
+          "validationProbeSkippedReason": null,
+          "validationProbeValues": {
+            "Email": "dryrun-invalid@example.invalid",
+            "Password": "!"
+          },
+          "validationProbeNote": "submitting via \"Sign up\" advanced to a different state, so this screen did not reject the value"
+        },
+        "mobile-390": {
+          "interactiveCount": 3,
+          "belowFoldPrimaryCta": false,
+          "belowFoldInteractives": [],
+          "tabbableNames": [
+            "Email",
+            "Password",
+            "Sign up"
+          ],
+          "offscreenInteractives": [],
+          "primaryCtaContrastRatio": 4.55,
+          "primaryCtaLowContrast": false,
+          "competingCtas": false,
+          "competingCtaNames": [],
+          "errorTextContrast": null,
+          "errorTextLowContrast": false,
+          "errorTextInA11yTree": null,
+          "hasAriaLive": false,
+          "deadEndControl": false,
+          "deadEndControlNames": []
+        }
+      }
+    },
+    "s1": {
+      "id": "s1",
+      "fingerprint": "b559f66acdb7e105bc1506060f88bc8059460102bc9925f7ca7655725f599b37",
+      "url": "http://localhost:5173/workspace",
+      "title": "Meridian",
+      "screenshotPath": "/static/runs/cmto9k6l30001rfnk1lkwzwml/s1.jpg",
+      "a11yTree": [
+        {
+          "ref": "f2e3",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 1510
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f2e4",
+          "role": "banner",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 60
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f2e5",
+          "role": "main",
+          "name": "",
+          "box": {
+            "x": 400,
+            "y": 60,
+            "width": 480,
+            "height": 1450
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f2e6",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 424,
+            "y": 108,
+            "width": 432,
+            "height": 1306
+          },
+          "landmark": "main",
+          "ordinal": 1
+        },
+        {
+          "ref": "f2e7",
+          "role": "heading",
+          "name": "Create your workspace",
+          "box": {
+            "x": 457,
+            "y": 141,
+            "width": 366,
+            "height": 33
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f2e8",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 182,
+            "width": 366,
+            "height": 1199
+          },
+          "landmark": "main",
+          "ordinal": 2
+        },
+        {
+          "ref": "f2e9",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 182,
+            "width": 366,
+            "height": 61
+          },
+          "landmark": "main",
+          "ordinal": 3
+        },
+        {
+          "ref": "f2e10",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 182,
+            "width": 366,
+            "height": 20
+          },
+          "landmark": "main",
+          "ordinal": 4
+        },
+        {
+          "ref": "f2e11",
+          "role": "textbox",
+          "name": "Workspace name",
+          "box": {
+            "x": 457,
+            "y": 206,
+            "width": 366,
+            "height": 37
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f2e12",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 267,
+            "width": 366,
+            "height": 1051
+          },
+          "landmark": "main",
+          "ordinal": 5
+        },
+        {
+          "ref": "f2e13",
+          "role": "heading",
+          "name": "Why workspaces matter",
+          "box": {
+            "x": 457,
+            "y": 267,
+            "width": 366,
+            "height": 27
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f2e14",
+          "role": "paragraph",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 302,
+            "width": 366,
+            "height": 144
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f2e15",
+          "role": "paragraph",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 462,
+            "width": 366,
+            "height": 168
+          },
+          "landmark": "main",
+          "ordinal": 1
+        },
+        {
+          "ref": "f2e16",
+          "role": "paragraph",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 646,
+            "width": 366,
+            "height": 168
+          },
+          "landmark": "main",
+          "ordinal": 2
+        },
+        {
+          "ref": "f2e17",
+          "role": "paragraph",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 830,
+            "width": 366,
+            "height": 192
+          },
+          "landmark": "main",
+          "ordinal": 3
+        },
+        {
+          "ref": "f2e18",
+          "role": "paragraph",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 1038,
+            "width": 366,
+            "height": 120
+          },
+          "landmark": "main",
+          "ordinal": 4
+        },
+        {
+          "ref": "f2e19",
+          "role": "paragraph",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 1174,
+            "width": 366,
+            "height": 144
+          },
+          "landmark": "main",
+          "ordinal": 5
+        },
+        {
+          "ref": "f2e20",
+          "role": "button",
+          "name": "Create workspace",
+          "box": {
+            "x": 457,
+            "y": 1342,
+            "width": 143,
+            "height": 39
+          },
+          "landmark": "main",
+          "ordinal": 0
+        }
+      ],
+      "staticSignals": {
+        "interactiveCount": 2,
+        "belowFoldPrimaryCta": true,
+        "belowFoldInteractives": [
+          "Create workspace"
+        ],
+        "tabbableNames": [
+          "Workspace name",
+          "Create workspace"
+        ],
+        "offscreenInteractives": [],
+        "primaryCtaContrastRatio": 4.55,
+        "primaryCtaLowContrast": false,
+        "competingCtas": false,
+        "competingCtaNames": [],
+        "errorTextContrast": null,
+        "errorTextLowContrast": false,
+        "errorTextInA11yTree": null,
+        "hasAriaLive": false,
+        "deadEndControl": false,
+        "deadEndControlNames": [],
+        "jargonScore": 0,
+        "jargonUnmeasuredReason": null,
+        "jargonProductVocabulary": [
+          "your"
+        ],
+        "validationProbed": true,
+        "validationRejected": false,
+        "validationProbeSkippedReason": null,
+        "validationProbeValues": {
+          "Workspace name": "!"
+        },
+        "validationProbeNote": "submitting via \"Create workspace\" advanced to a different state, so this screen did not reject the value"
+      },
+      "viewports": {
+        "laptop-1280": {
+          "interactiveCount": 2,
+          "belowFoldPrimaryCta": true,
+          "belowFoldInteractives": [
+            "Create workspace"
+          ],
+          "tabbableNames": [
+            "Workspace name",
+            "Create workspace"
+          ],
+          "offscreenInteractives": [],
+          "primaryCtaContrastRatio": 4.55,
+          "primaryCtaLowContrast": false,
+          "competingCtas": false,
+          "competingCtaNames": [],
+          "errorTextContrast": null,
+          "errorTextLowContrast": false,
+          "errorTextInA11yTree": null,
+          "hasAriaLive": false,
+          "deadEndControl": false,
+          "deadEndControlNames": [],
+          "jargonScore": 0,
+          "jargonUnmeasuredReason": null,
+          "jargonProductVocabulary": [
+            "your"
+          ],
+          "validationProbed": true,
+          "validationRejected": false,
+          "validationProbeSkippedReason": null,
+          "validationProbeValues": {
+            "Workspace name": "!"
+          },
+          "validationProbeNote": "submitting via \"Create workspace\" advanced to a different state, so this screen did not reject the value"
+        },
+        "mobile-390": {
+          "interactiveCount": 2,
+          "belowFoldPrimaryCta": true,
+          "belowFoldInteractives": [
+            "Create workspace"
+          ],
+          "tabbableNames": [
+            "Workspace name",
+            "Create workspace"
+          ],
+          "offscreenInteractives": [],
+          "primaryCtaContrastRatio": 4.55,
+          "primaryCtaLowContrast": false,
+          "competingCtas": false,
+          "competingCtaNames": [],
+          "errorTextContrast": null,
+          "errorTextLowContrast": false,
+          "errorTextInA11yTree": null,
+          "hasAriaLive": false,
+          "deadEndControl": false,
+          "deadEndControlNames": []
+        }
+      }
+    },
+    "s2": {
+      "id": "s2",
+      "fingerprint": "52f0f928287bf666e0b8ace45ca2964b508282546839e8bfad10250dfc2636cd",
+      "url": "http://localhost:5173/connect",
+      "title": "Meridian",
+      "screenshotPath": "/static/runs/cmto9k6l30001rfnk1lkwzwml/s2.jpg",
+      "a11yTree": [
+        {
+          "ref": "f4e3",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 472
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f4e4",
+          "role": "banner",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 60
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f4e5",
+          "role": "main",
+          "name": "",
+          "box": {
+            "x": 400,
+            "y": 60,
+            "width": 480,
+            "height": 412
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f4e6",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 424,
+            "y": 108,
+            "width": 432,
+            "height": 268
+          },
+          "landmark": "main",
+          "ordinal": 1
+        },
+        {
+          "ref": "f4e7",
+          "role": "heading",
+          "name": "Connect a data source",
+          "box": {
+            "x": 457,
+            "y": 141,
+            "width": 366,
+            "height": 33
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f4e8",
+          "role": "paragraph",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 182,
+            "width": 366,
+            "height": 21
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f4e9",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 227,
+            "width": 366,
+            "height": 116
+          },
+          "landmark": "main",
+          "ordinal": 2
+        },
+        {
+          "ref": "f4e10",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 227,
+            "width": 366,
+            "height": 61
+          },
+          "landmark": "main",
+          "ordinal": 3
+        },
+        {
+          "ref": "f4e11",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 227,
+            "width": 366,
+            "height": 20
+          },
+          "landmark": "main",
+          "ordinal": 4
+        },
+        {
+          "ref": "f4e12",
+          "role": "textbox",
+          "name": "API key",
+          "box": {
+            "x": 457,
+            "y": 251,
+            "width": 366,
+            "height": 37
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f4e13",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 304,
+            "width": 366,
+            "height": 39
+          },
+          "landmark": "main",
+          "ordinal": 5
+        },
+        {
+          "ref": "f4e14",
+          "role": "button",
+          "name": "Continue",
+          "box": {
+            "x": 457,
+            "y": 304,
+            "width": 90,
+            "height": 39
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f4e15",
+          "role": "button",
+          "name": "Connect source",
+          "box": {
+            "x": 559,
+            "y": 304,
+            "width": 130,
+            "height": 39
+          },
+          "landmark": "main",
+          "ordinal": 0
+        }
+      ],
+      "staticSignals": {
+        "interactiveCount": 3,
+        "belowFoldPrimaryCta": false,
+        "belowFoldInteractives": [],
+        "tabbableNames": [
+          "API key",
+          "Continue",
+          "Connect source"
+        ],
+        "offscreenInteractives": [],
+        "primaryCtaContrastRatio": 4.55,
+        "primaryCtaLowContrast": false,
+        "competingCtas": true,
+        "competingCtaNames": [
+          "Continue",
+          "Connect source"
+        ],
+        "errorTextContrast": 1.11,
+        "errorTextLowContrast": true,
+        "errorTextInA11yTree": true,
+        "hasAriaLive": false,
+        "deadEndControl": true,
+        "deadEndControlNames": [
+          "Continue"
+        ],
+        "jargonScore": 0.25,
+        "jargonUnmeasuredReason": null,
+        "jargonProductVocabulary": [
+          "your"
+        ],
+        "validationProbed": true,
+        "validationRejected": true,
+        "validationProbeSkippedReason": null,
+        "validationProbeValues": {
+          "API key": "!"
+        },
+        "validationProbeNote": null,
+        "validationRecovers": true,
+        "errorTextSource": "delta",
+        "errorText": "That key doesn't look right. Double check and try again.",
+        "errorRoleAlert": false,
+        "errorInLiveRegion": false,
+        "errorAriaInvalid": false,
+        "errorAriaDescribedby": false,
+        "errorAnnounced": false
+      },
+      "viewports": {
+        "laptop-1280": {
+          "interactiveCount": 3,
+          "belowFoldPrimaryCta": false,
+          "belowFoldInteractives": [],
+          "tabbableNames": [
+            "API key",
+            "Continue",
+            "Connect source"
+          ],
+          "offscreenInteractives": [],
+          "primaryCtaContrastRatio": 4.55,
+          "primaryCtaLowContrast": false,
+          "competingCtas": true,
+          "competingCtaNames": [
+            "Continue",
+            "Connect source"
+          ],
+          "errorTextContrast": 1.11,
+          "errorTextLowContrast": true,
+          "errorTextInA11yTree": true,
+          "hasAriaLive": false,
+          "deadEndControl": true,
+          "deadEndControlNames": [
+            "Continue"
+          ],
+          "jargonScore": 0.25,
+          "jargonUnmeasuredReason": null,
+          "jargonProductVocabulary": [
+            "your"
+          ],
+          "validationProbed": true,
+          "validationRejected": true,
+          "validationProbeSkippedReason": null,
+          "validationProbeValues": {
+            "API key": "!"
+          },
+          "validationProbeNote": null,
+          "validationRecovers": true,
+          "errorTextSource": "delta",
+          "errorText": "That key doesn't look right. Double check and try again.",
+          "errorRoleAlert": false,
+          "errorInLiveRegion": false,
+          "errorAriaInvalid": false,
+          "errorAriaDescribedby": false,
+          "errorAnnounced": false
+        },
+        "mobile-390": {
+          "interactiveCount": 3,
+          "belowFoldPrimaryCta": false,
+          "belowFoldInteractives": [],
+          "tabbableNames": [
+            "API key",
+            "Continue",
+            "Connect source"
+          ],
+          "offscreenInteractives": [],
+          "primaryCtaContrastRatio": 4.55,
+          "primaryCtaLowContrast": false,
+          "competingCtas": true,
+          "competingCtaNames": [
+            "Continue",
+            "Connect source"
+          ],
+          "errorTextContrast": null,
+          "errorTextLowContrast": false,
+          "errorTextInA11yTree": null,
+          "hasAriaLive": false,
+          "deadEndControl": false,
+          "deadEndControlNames": []
+        }
+      }
+    },
+    "s3": {
+      "id": "s3",
+      "fingerprint": "5214c80e0783b80faa2d94c71bf5cb59fd78dc1ea6ddd66723a50a394345bb5a",
+      "url": "http://localhost:5173/invite",
+      "title": "Meridian",
+      "screenshotPath": "/static/runs/cmto9k6l30001rfnk1lkwzwml/s3.jpg",
+      "a11yTree": [
+        {
+          "ref": "f7e3",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 472
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f7e4",
+          "role": "banner",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 60
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f7e5",
+          "role": "main",
+          "name": "",
+          "box": {
+            "x": 400,
+            "y": 60,
+            "width": 480,
+            "height": 412
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f7e6",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 424,
+            "y": 108,
+            "width": 432,
+            "height": 268
+          },
+          "landmark": "main",
+          "ordinal": 1
+        },
+        {
+          "ref": "f7e7",
+          "role": "heading",
+          "name": "Invite your team",
+          "box": {
+            "x": 457,
+            "y": 141,
+            "width": 366,
+            "height": 33
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f7e8",
+          "role": "paragraph",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 182,
+            "width": 366,
+            "height": 21
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f7e9",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 227,
+            "width": 366,
+            "height": 116
+          },
+          "landmark": "main",
+          "ordinal": 2
+        },
+        {
+          "ref": "f7e10",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 227,
+            "width": 366,
+            "height": 61
+          },
+          "landmark": "main",
+          "ordinal": 3
+        },
+        {
+          "ref": "f7e11",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 227,
+            "width": 366,
+            "height": 20
+          },
+          "landmark": "main",
+          "ordinal": 4
+        },
+        {
+          "ref": "f7e12",
+          "role": "textbox",
+          "name": "Email",
+          "box": {
+            "x": 457,
+            "y": 251,
+            "width": 366,
+            "height": 37
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f7e13",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 304,
+            "width": 366,
+            "height": 39
+          },
+          "landmark": "main",
+          "ordinal": 5
+        },
+        {
+          "ref": "f7e14",
+          "role": "button",
+          "name": "Back",
+          "box": {
+            "x": 457,
+            "y": 304,
+            "width": 63,
+            "height": 39
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f7e15",
+          "role": "button",
+          "name": "Send invite",
+          "box": {
+            "x": 532,
+            "y": 304,
+            "width": 102,
+            "height": 39
+          },
+          "landmark": "main",
+          "ordinal": 0
+        }
+      ],
+      "staticSignals": {
+        "interactiveCount": 3,
+        "belowFoldPrimaryCta": false,
+        "belowFoldInteractives": [],
+        "tabbableNames": [
+          "Email",
+          "Back",
+          "Send invite"
+        ],
+        "offscreenInteractives": [],
+        "primaryCtaContrastRatio": 12.63,
+        "primaryCtaLowContrast": false,
+        "competingCtas": false,
+        "competingCtaNames": [],
+        "errorTextContrast": null,
+        "errorTextLowContrast": false,
+        "errorTextInA11yTree": null,
+        "hasAriaLive": false,
+        "deadEndControl": true,
+        "deadEndControlNames": [
+          "Back"
+        ],
+        "jargonScore": 0,
+        "jargonUnmeasuredReason": null,
+        "jargonProductVocabulary": [
+          "your"
+        ],
+        "validationProbed": true,
+        "validationRejected": false,
+        "validationProbeSkippedReason": null,
+        "validationProbeValues": {
+          "Email": "dryrun-invalid@example.invalid"
+        },
+        "validationProbeNote": "submitting via \"Send invite\" advanced to a different state, so this screen did not reject the value"
+      },
+      "viewports": {
+        "laptop-1280": {
+          "interactiveCount": 3,
+          "belowFoldPrimaryCta": false,
+          "belowFoldInteractives": [],
+          "tabbableNames": [
+            "Email",
+            "Back",
+            "Send invite"
+          ],
+          "offscreenInteractives": [],
+          "primaryCtaContrastRatio": 12.63,
+          "primaryCtaLowContrast": false,
+          "competingCtas": false,
+          "competingCtaNames": [],
+          "errorTextContrast": null,
+          "errorTextLowContrast": false,
+          "errorTextInA11yTree": null,
+          "hasAriaLive": false,
+          "deadEndControl": true,
+          "deadEndControlNames": [
+            "Back"
+          ],
+          "jargonScore": 0,
+          "jargonUnmeasuredReason": null,
+          "jargonProductVocabulary": [
+            "your"
+          ],
+          "validationProbed": true,
+          "validationRejected": false,
+          "validationProbeSkippedReason": null,
+          "validationProbeValues": {
+            "Email": "dryrun-invalid@example.invalid"
+          },
+          "validationProbeNote": "submitting via \"Send invite\" advanced to a different state, so this screen did not reject the value"
+        },
+        "mobile-390": {
+          "interactiveCount": 3,
+          "belowFoldPrimaryCta": false,
+          "belowFoldInteractives": [],
+          "tabbableNames": [
+            "Email",
+            "Back",
+            "Send invite"
+          ],
+          "offscreenInteractives": [],
+          "primaryCtaContrastRatio": 12.63,
+          "primaryCtaLowContrast": false,
+          "competingCtas": false,
+          "competingCtaNames": [],
+          "errorTextContrast": null,
+          "errorTextLowContrast": false,
+          "errorTextInA11yTree": null,
+          "hasAriaLive": false,
+          "deadEndControl": false,
+          "deadEndControlNames": []
+        }
+      }
+    },
+    "s4": {
+      "id": "s4",
+      "fingerprint": "7aa0a0df720ddfbfde3c253d485c6de70757dc8299d5887d6a1321186504103a",
+      "url": "http://localhost:5173/webhook",
+      "title": "Meridian",
+      "screenshotPath": "/static/runs/cmto9k6l30001rfnk1lkwzwml/s4.jpg",
+      "a11yTree": [
+        {
+          "ref": "f10e3",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 577
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f10e4",
+          "role": "banner",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 60
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f10e5",
+          "role": "main",
+          "name": "",
+          "box": {
+            "x": 400,
+            "y": 60,
+            "width": 480,
+            "height": 517
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f10e6",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 424,
+            "y": 108,
+            "width": 432,
+            "height": 373
+          },
+          "landmark": "main",
+          "ordinal": 1
+        },
+        {
+          "ref": "f10e7",
+          "role": "heading",
+          "name": "Configure your ingestion webhook",
+          "box": {
+            "x": 457,
+            "y": 141,
+            "width": 366,
+            "height": 33
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f10e8",
+          "role": "paragraph",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 182,
+            "width": 366,
+            "height": 84
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f10e9",
+          "role": "button",
+          "name": "Learn about webhooks",
+          "box": {
+            "x": 457,
+            "y": 293,
+            "width": 141,
+            "height": 19
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f10e10",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 332,
+            "width": 366,
+            "height": 116
+          },
+          "landmark": "main",
+          "ordinal": 2
+        },
+        {
+          "ref": "f10e11",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 332,
+            "width": 366,
+            "height": 61
+          },
+          "landmark": "main",
+          "ordinal": 3
+        },
+        {
+          "ref": "f10e12",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 332,
+            "width": 366,
+            "height": 20
+          },
+          "landmark": "main",
+          "ordinal": 4
+        },
+        {
+          "ref": "f10e13",
+          "role": "textbox",
+          "name": "Endpoint URL",
+          "box": {
+            "x": 457,
+            "y": 356,
+            "width": 366,
+            "height": 37
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f10e14",
+          "role": "button",
+          "name": "Save webhook",
+          "box": {
+            "x": 457,
+            "y": 409,
+            "width": 123,
+            "height": 39
+          },
+          "landmark": "main",
+          "ordinal": 0
+        }
+      ],
+      "staticSignals": {
+        "interactiveCount": 3,
+        "belowFoldPrimaryCta": false,
+        "belowFoldInteractives": [],
+        "tabbableNames": [
+          "Learn about webhooks",
+          "Endpoint URL",
+          "Save webhook"
+        ],
+        "offscreenInteractives": [],
+        "primaryCtaContrastRatio": 4.55,
+        "primaryCtaLowContrast": false,
+        "competingCtas": false,
+        "competingCtaNames": [],
+        "errorTextContrast": null,
+        "errorTextLowContrast": false,
+        "errorTextInA11yTree": null,
+        "hasAriaLive": false,
+        "deadEndControl": false,
+        "deadEndControlNames": [],
+        "jargonScore": 1,
+        "jargonUnmeasuredReason": null,
+        "jargonProductVocabulary": [
+          "your"
+        ],
+        "validationProbed": true,
+        "validationRejected": false,
+        "validationProbeSkippedReason": null,
+        "validationProbeValues": {
+          "Endpoint URL": "https://example.invalid/dryrun-invalid"
+        },
+        "validationProbeNote": "submitting via \"Save webhook\" advanced to a different state, so this screen did not reject the value"
+      },
+      "viewports": {
+        "laptop-1280": {
+          "interactiveCount": 3,
+          "belowFoldPrimaryCta": false,
+          "belowFoldInteractives": [],
+          "tabbableNames": [
+            "Learn about webhooks",
+            "Endpoint URL",
+            "Save webhook"
+          ],
+          "offscreenInteractives": [],
+          "primaryCtaContrastRatio": 4.55,
+          "primaryCtaLowContrast": false,
+          "competingCtas": false,
+          "competingCtaNames": [],
+          "errorTextContrast": null,
+          "errorTextLowContrast": false,
+          "errorTextInA11yTree": null,
+          "hasAriaLive": false,
+          "deadEndControl": false,
+          "deadEndControlNames": [],
+          "jargonScore": 1,
+          "jargonUnmeasuredReason": null,
+          "jargonProductVocabulary": [
+            "your"
+          ],
+          "validationProbed": true,
+          "validationRejected": false,
+          "validationProbeSkippedReason": null,
+          "validationProbeValues": {
+            "Endpoint URL": "https://example.invalid/dryrun-invalid"
+          },
+          "validationProbeNote": "submitting via \"Save webhook\" advanced to a different state, so this screen did not reject the value"
+        },
+        "mobile-390": {
+          "interactiveCount": 3,
+          "belowFoldPrimaryCta": false,
+          "belowFoldInteractives": [],
+          "tabbableNames": [
+            "Learn about webhooks",
+            "Endpoint URL",
+            "Save webhook"
+          ],
+          "offscreenInteractives": [],
+          "primaryCtaContrastRatio": 4.55,
+          "primaryCtaLowContrast": false,
+          "competingCtas": false,
+          "competingCtaNames": [],
+          "errorTextContrast": null,
+          "errorTextLowContrast": false,
+          "errorTextInA11yTree": null,
+          "hasAriaLive": false,
+          "deadEndControl": false,
+          "deadEndControlNames": []
+        }
+      }
+    },
+    "s5": {
+      "id": "s5",
+      "fingerprint": "1b71539fff1503ff8480cb2202bde6d7c47d78a6ce85f6cf2e227719de57d34a",
+      "url": "http://localhost:5173/webhook",
+      "title": "Meridian",
+      "screenshotPath": "/static/runs/cmto9k6l30001rfnk1lkwzwml/s5.jpg",
+      "a11yTree": [
+        {
+          "ref": "f12e3",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 577
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f12e4",
+          "role": "banner",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 60
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f12e5",
+          "role": "main",
+          "name": "",
+          "box": {
+            "x": 400,
+            "y": 60,
+            "width": 480,
+            "height": 517
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f12e6",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 424,
+            "y": 108,
+            "width": 432,
+            "height": 373
+          },
+          "landmark": "main",
+          "ordinal": 1
+        },
+        {
+          "ref": "f12e7",
+          "role": "heading",
+          "name": "Configure your ingestion webhook",
+          "box": {
+            "x": 457,
+            "y": 141,
+            "width": 366,
+            "height": 33
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f12e8",
+          "role": "paragraph",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 182,
+            "width": 366,
+            "height": 84
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f12e9",
+          "role": "button",
+          "name": "Learn about webhooks",
+          "box": {
+            "x": 457,
+            "y": 293,
+            "width": 141,
+            "height": 19
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f12e10",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 332,
+            "width": 366,
+            "height": 116
+          },
+          "landmark": "main",
+          "ordinal": 2
+        },
+        {
+          "ref": "f12e11",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 332,
+            "width": 366,
+            "height": 61
+          },
+          "landmark": "main",
+          "ordinal": 3
+        },
+        {
+          "ref": "f12e12",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 332,
+            "width": 366,
+            "height": 20
+          },
+          "landmark": "main",
+          "ordinal": 4
+        },
+        {
+          "ref": "f12e13",
+          "role": "textbox",
+          "name": "Endpoint URL",
+          "box": {
+            "x": 457,
+            "y": 356,
+            "width": 366,
+            "height": 37
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f12e14",
+          "role": "button",
+          "name": "Save webhook",
+          "box": {
+            "x": 457,
+            "y": 409,
+            "width": 123,
+            "height": 39
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f12e16",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 430,
+            "y": 271,
+            "width": 420,
+            "height": 178
+          },
+          "landmark": "main",
+          "ordinal": 5
+        },
+        {
+          "ref": "f12e17",
+          "role": "button",
+          "name": "Close",
+          "box": {
+            "x": 862,
+            "y": 259,
+            "width": 28,
+            "height": 28
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f12e18",
+          "role": "heading",
+          "name": "About webhooks",
+          "box": {
+            "x": 454,
+            "y": 295,
+            "width": 372,
+            "height": 26
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f12e19",
+          "role": "paragraph",
+          "name": "",
+          "box": {
+            "x": 454,
+            "y": 329,
+            "width": 372,
+            "height": 96
+          },
+          "landmark": "main",
+          "ordinal": 1
+        }
+      ],
+      "staticSignals": {
+        "interactiveCount": 4,
+        "belowFoldPrimaryCta": false,
+        "belowFoldInteractives": [],
+        "tabbableNames": [
+          "Learn about webhooks",
+          "Endpoint URL",
+          "Save webhook",
+          "Close"
+        ],
+        "offscreenInteractives": [],
+        "primaryCtaContrastRatio": 4.55,
+        "primaryCtaLowContrast": false,
+        "competingCtas": false,
+        "competingCtaNames": [],
+        "errorTextContrast": null,
+        "errorTextLowContrast": false,
+        "errorTextInA11yTree": null,
+        "hasAriaLive": false,
+        "deadEndControl": true,
+        "deadEndControlNames": [
+          "Learn about webhooks",
+          "Save webhook"
+        ],
+        "jargonScore": 0.8333333333333334,
+        "jargonUnmeasuredReason": null,
+        "jargonProductVocabulary": [
+          "your"
+        ],
+        "validationProbed": false,
+        "validationRejected": null,
+        "validationProbeSkippedReason": "submit control \"Save webhook\" was not actionable"
+      },
+      "viewports": {
+        "laptop-1280": {
+          "interactiveCount": 4,
+          "belowFoldPrimaryCta": false,
+          "belowFoldInteractives": [],
+          "tabbableNames": [
+            "Learn about webhooks",
+            "Endpoint URL",
+            "Save webhook",
+            "Close"
+          ],
+          "offscreenInteractives": [],
+          "primaryCtaContrastRatio": 4.55,
+          "primaryCtaLowContrast": false,
+          "competingCtas": false,
+          "competingCtaNames": [],
+          "errorTextContrast": null,
+          "errorTextLowContrast": false,
+          "errorTextInA11yTree": null,
+          "hasAriaLive": false,
+          "deadEndControl": true,
+          "deadEndControlNames": [
+            "Learn about webhooks",
+            "Save webhook"
+          ],
+          "jargonScore": 0.8333333333333334,
+          "jargonUnmeasuredReason": null,
+          "jargonProductVocabulary": [
+            "your"
+          ],
+          "validationProbed": false,
+          "validationRejected": null,
+          "validationProbeSkippedReason": "submit control \"Save webhook\" was not actionable"
+        },
+        "mobile-390": {
+          "interactiveCount": 4,
+          "belowFoldPrimaryCta": false,
+          "belowFoldInteractives": [],
+          "tabbableNames": [
+            "Learn about webhooks",
+            "Endpoint URL",
+            "Save webhook",
+            "Close"
+          ],
+          "offscreenInteractives": [
+            "Close"
+          ],
+          "primaryCtaContrastRatio": 4.55,
+          "primaryCtaLowContrast": false,
+          "competingCtas": false,
+          "competingCtaNames": [],
+          "errorTextContrast": null,
+          "errorTextLowContrast": false,
+          "errorTextInA11yTree": null,
+          "hasAriaLive": false,
+          "deadEndControl": false,
+          "deadEndControlNames": []
+        }
+      }
+    },
+    "s6": {
+      "id": "s6",
+      "fingerprint": "004151490f5a02e3a95eb119d976d62750ca03a6996d4075751168e8acd64b66",
+      "url": "http://localhost:5173/dashboard",
+      "title": "Meridian",
+      "screenshotPath": "/static/runs/cmto9k6l30001rfnk1lkwzwml/s6.jpg",
+      "a11yTree": [
+        {
+          "ref": "f13e3",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 377
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f13e4",
+          "role": "banner",
+          "name": "",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 60
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f13e5",
+          "role": "main",
+          "name": "",
+          "box": {
+            "x": 400,
+            "y": 60,
+            "width": 480,
+            "height": 317
+          },
+          "ordinal": 0
+        },
+        {
+          "ref": "f13e6",
+          "role": "generic",
+          "name": "",
+          "box": {
+            "x": 424,
+            "y": 108,
+            "width": 432,
+            "height": 173
+          },
+          "landmark": "main",
+          "ordinal": 1
+        },
+        {
+          "ref": "f13e7",
+          "role": "heading",
+          "name": "Your workspace is ready",
+          "box": {
+            "x": 457,
+            "y": 141,
+            "width": 366,
+            "height": 33
+          },
+          "landmark": "main",
+          "ordinal": 0
+        },
+        {
+          "ref": "f13e8",
+          "role": "paragraph",
+          "name": "",
+          "box": {
+            "x": 457,
+            "y": 182,
+            "width": 366,
+            "height": 42
+          },
+          "landmark": "main",
+          "ordinal": 0
+        }
+      ],
+      "staticSignals": {
+        "interactiveCount": 0,
+        "belowFoldPrimaryCta": false,
+        "belowFoldInteractives": [],
+        "tabbableNames": [],
+        "offscreenInteractives": [],
+        "primaryCtaContrastRatio": null,
+        "primaryCtaLowContrast": false,
+        "competingCtas": false,
+        "competingCtaNames": [],
+        "errorTextContrast": null,
+        "errorTextLowContrast": false,
+        "errorTextInA11yTree": null,
+        "hasAriaLive": false,
+        "deadEndControl": false,
+        "deadEndControlNames": [],
+        "jargonScore": null,
+        "jargonUnmeasuredReason": "only 1 accessible names, below the 4 needed to measure",
+        "jargonProductVocabulary": [
+          "your"
+        ],
+        "validationProbed": false,
+        "validationRejected": null,
+        "validationProbeSkippedReason": "no text input on this screen to submit"
+      },
+      "viewports": {
+        "laptop-1280": {
+          "interactiveCount": 0,
+          "belowFoldPrimaryCta": false,
+          "belowFoldInteractives": [],
+          "tabbableNames": [],
+          "offscreenInteractives": [],
+          "primaryCtaContrastRatio": null,
+          "primaryCtaLowContrast": false,
+          "competingCtas": false,
+          "competingCtaNames": [],
+          "errorTextContrast": null,
+          "errorTextLowContrast": false,
+          "errorTextInA11yTree": null,
+          "hasAriaLive": false,
+          "deadEndControl": false,
+          "deadEndControlNames": [],
+          "jargonScore": null,
+          "jargonUnmeasuredReason": "only 1 accessible names, below the 4 needed to measure",
+          "jargonProductVocabulary": [
+            "your"
+          ],
+          "validationProbed": false,
+          "validationRejected": null,
+          "validationProbeSkippedReason": "no text input on this screen to submit"
+        },
+        "mobile-390": {
+          "interactiveCount": 0,
+          "belowFoldPrimaryCta": false,
+          "belowFoldInteractives": [],
+          "tabbableNames": [],
+          "offscreenInteractives": [],
+          "primaryCtaContrastRatio": null,
+          "primaryCtaLowContrast": false,
+          "competingCtas": false,
+          "competingCtaNames": [],
+          "errorTextContrast": null,
+          "errorTextLowContrast": false,
+          "errorTextInA11yTree": null,
+          "hasAriaLive": false,
+          "deadEndControl": false,
+          "deadEndControlNames": []
+        }
+      }
+    }
+  },
+  "edges": [
+    {
+      "fromStateId": "s0",
+      "toStateId": "s0",
+      "action": "type",
+      "targetRef": "e12",
+      "anchor": {
+        "role": "textbox",
+        "name": "Email",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s0",
+      "toStateId": "s0",
+      "action": "type",
+      "targetRef": "e15",
+      "anchor": {
+        "role": "textbox",
+        "name": "Password",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s0",
+      "toStateId": "s1",
+      "action": "click",
+      "targetRef": "e16",
+      "anchor": {
+        "role": "button",
+        "name": "Sign up",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s1",
+      "toStateId": "s1",
+      "action": "type",
+      "targetRef": "f2e11",
+      "anchor": {
+        "role": "textbox",
+        "name": "Workspace name",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s1",
+      "toStateId": "s2",
+      "action": "click",
+      "targetRef": "f2e20",
+      "anchor": {
+        "role": "button",
+        "name": "Create workspace",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s2",
+      "toStateId": "s2",
+      "action": "type",
+      "targetRef": "f4e12",
+      "anchor": {
+        "role": "textbox",
+        "name": "API key",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s2",
+      "toStateId": "s2",
+      "action": "click",
+      "targetRef": "f4e14",
+      "anchor": {
+        "role": "button",
+        "name": "Continue",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s2",
+      "toStateId": "s3",
+      "action": "click",
+      "targetRef": "f4e15",
+      "anchor": {
+        "role": "button",
+        "name": "Connect source",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s3",
+      "toStateId": "s3",
+      "action": "type",
+      "targetRef": "f7e12",
+      "anchor": {
+        "role": "textbox",
+        "name": "Email",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s3",
+      "toStateId": "s3",
+      "action": "click",
+      "targetRef": "f7e14",
+      "anchor": {
+        "role": "button",
+        "name": "Back",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s3",
+      "toStateId": "s4",
+      "action": "click",
+      "targetRef": "f7e15",
+      "anchor": {
+        "role": "button",
+        "name": "Send invite",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s4",
+      "toStateId": "s4",
+      "action": "type",
+      "targetRef": "f10e13",
+      "anchor": {
+        "role": "textbox",
+        "name": "Endpoint URL",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s4",
+      "toStateId": "s5",
+      "action": "click",
+      "targetRef": "f10e9",
+      "anchor": {
+        "role": "button",
+        "name": "Learn about webhooks",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s4",
+      "toStateId": "s6",
+      "action": "click",
+      "targetRef": "f10e14",
+      "anchor": {
+        "role": "button",
+        "name": "Save webhook",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s5",
+      "toStateId": "s5",
+      "action": "type",
+      "targetRef": "f12e13",
+      "anchor": {
+        "role": "textbox",
+        "name": "Endpoint URL",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s5",
+      "toStateId": "s5",
+      "action": "click",
+      "targetRef": "f12e9",
+      "anchor": {
+        "role": "button",
+        "name": "Learn about webhooks",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s5",
+      "toStateId": "s5",
+      "action": "click",
+      "targetRef": "f12e14",
+      "anchor": {
+        "role": "button",
+        "name": "Save webhook",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    },
+    {
+      "fromStateId": "s5",
+      "toStateId": "s4",
+      "action": "click",
+      "targetRef": "f12e17",
+      "anchor": {
+        "role": "button",
+        "name": "Close",
+        "landmark": "main",
+        "ordinal": 0
+      }
+    }
+  ]
+}

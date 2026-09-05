@@ -37,10 +37,13 @@ export const NON_TERMINAL_RUN_STATUSES = RunStatus.options.filter(
     !(TERMINAL_RUN_STATUSES as readonly RunStatus[]).includes(s),
 );
 
+// The five stages the orchestrator actually runs, plus the terminal one.
+// "scouts" and "calibration" are cut (CLAUDE.md §5) and are gone from here:
+// they were kept alive only by LiveConsole's stage rail typing itself as
+// RunStage[], which meant a dead subsystem was still shaping the operator's
+// progress display and a run could be persisted into a stage nothing advances.
 export const RunStage = z.enum([
   "crawl",
-  "scouts",
-  "calibration",
   "chorus",
   "analysis",
   "tour",
@@ -79,6 +82,13 @@ export type DeviceType = z.infer<typeof DeviceType>;
 
 export const InputMode = z.enum(["pointer", "keyboard-only", "screen-reader"]);
 export type InputMode = z.infer<typeof InputMode>;
+
+// PS-01 / TRD §5.1 — the tenth trait. Not a language tag: the walk model does
+// not know what language the target is in, only whether the persona is reading
+// it as a second language, which is what changes the jargon and reading-depth
+// terms (TRD §5.4).
+export const PersonaLocale = z.enum(["native", "non-native"]);
+export type PersonaLocale = z.infer<typeof PersonaLocale>;
 
 export const DecisionSource = z.enum(["heuristic", "model", "fallback"]);
 export type DecisionSource = z.infer<typeof DecisionSource>;

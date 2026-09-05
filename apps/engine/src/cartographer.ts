@@ -18,6 +18,11 @@ import {
   wordsIn,
 } from "@dry-run/core";
 import { classifyNodes, isActionBlocked, parseAriaSnapshot } from "./aria.js";
+import {
+  replayCrawl,
+  replayFixtureIdFromEnv,
+  type FixtureProvenance,
+} from "./replay.js";
 import { captureStateScreenshot } from "./screenshots.js";
 import {
   computeStaticSignals,
@@ -640,11 +645,23 @@ export type CrawlResult = {
   stateCount: number;
   actionCount: number;
   truncated: boolean;
+  /**
+   * CR-13 — present only when the crawl was served from a cached fixture.
+   * Its absence is what says "a browser really did this", so nothing may
+   * default it to a value (L5: the disclosure is part of the pitch).
+   */
+  replayedFrom?: FixtureProvenance;
 };
 
 export type CrawlOptions = {
   seededValues?: SeededValues;
   allowActions?: AllowActions;
+  /**
+   * CR-13 / TRD §4.1 rule 6 — when set, the crawl stage is served from a
+   * committed fixture instead of a browser. Defaults to `DRYRUN_REPLAY`.
+   * Everything downstream still runs for real.
+   */
+  replayFixtureId?: string;
   /** Throws to abort the crawl; called once per state (TRD §4.1 rule 5). */
   checkCancel?: () => void;
   /** Reports states found so the orchestrator can map them onto its band. */
@@ -663,6 +680,23 @@ export async function runCrawl(
   url: string,
   options: CrawlOptions = {},
 ): Promise<CrawlResult> {
+  // CR-13 — checked before the browser launches, because the whole point of
+  // replay is that no browser is needed (L5: never crawl live on stage).
+  const replayFixtureId = options.replayFixtureId ?? replayFixtureIdFromEnv();
+  if (replayFixtureId) {
+    const replayed = await replayCrawl(runId, replayFixtureId, {
+      checkCancel: options.checkCancel,
+      onStateFound: options.onStateFound,
+    });
+    return {
+      graph: replayed.graph,
+      stateCount: replayed.stateCount,
+      actionCount: replayed.actionCount,
+      truncated: replayed.truncated,
+      replayedFrom: replayed.provenance,
+    };
+  }
+
   const browser = await chromium.launch();
 
   try {

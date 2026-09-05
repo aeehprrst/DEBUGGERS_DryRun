@@ -1,3 +1,4 @@
+import FindingsView from "@/components/FindingsView";
 import LiveConsole from "@/components/LiveConsole";
 import TourBuilder from "@/components/TourBuilder";
 
@@ -13,6 +14,10 @@ export default async function RunPage({
 
   if (view === undefined || view === "live") {
     return <LiveConsole runId={id} />;
+  }
+
+  if (view === "findings") {
+    return <FindingsView runId={id} />;
   }
 
   if (view === "tour") {

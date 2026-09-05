@@ -296,6 +296,12 @@ request, so a standing default would contradict CLAUDE.md §8.
 **5.2.4 Static signals (CR-12) — nine, all zero-AI**
 `belowFoldPrimaryCta` · `offscreenInteractives[]` · `primaryCtaContrast` ·
 **`errorTextContrast`** (any node with role `alert` or a name matching `/invalid|error|must|required/`)
+— detection is by **visible-text delta across a failed submit** (CR-14): text present after the
+probe's deliberately-invalid submit and not before *is* the error text, by construction, in any
+phrasing and any language. `aria-invalid` + `aria-describedby` corroborate it. `ERROR_TEXT_PATTERN`
+is a fallback only, used when the delta is empty — Meridian's own copy ("That key doesn't look
+right. Double check and try again.") matches none of those four words, so the pattern alone would
+miss the defect it was written for.
 · `hasAriaLive` · `competingCtas` (≥2 same-styled primary-verb buttons in one landmark) ·
 `interactiveCount` · `jargonScore` (fraction of accessible names flagged technical against a
 declared word list) · `medianActionLatencyMs`.

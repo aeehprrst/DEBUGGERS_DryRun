@@ -14,7 +14,7 @@ export default function AtlasInspector({
   if (!state) return null;
 
   return (
-    <div className="absolute inset-x-0 bottom-0 border-t border-rule-strong bg-chart-shoal p-4">
+    <div className="absolute inset-x-0 bottom-0 border-t border-rule-strong bg-shoal p-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-ink-0">{state.title}</p>

@@ -1,0 +1,68 @@
+{
+  "$comment": [
+    "PL-06 ground truth. The six defects deliberately planted in Meridian, transcribed from",
+    "docs/01-PRD-v2.md §9.1. This file is the evaluation harness's answer key and lives here,",
+    "with the app that contains the defects, rather than inside the harness — a score is only",
+    "meaningful if the answers were written down before the run and can be diffed independently",
+    "of the code that grades against them.",
+    "",
+    "`expectedSignature` is the FindingSignature from PRD §6.5 that the §9.1 'expected signal'",
+    "maps to. `route` is the URL pathname the defect lives on; a defect is matched to a finding",
+    "by (expectedSignature + route) and never by the finding's wording (CLAUDE.md §6.5 — text",
+    "matching would let a reworded explanation change the score).",
+    "",
+    "Never 'fix' these. They are the test fixture (PRD §9.1)."
+  ],
+  "target": "meridian-v1",
+  "source": "docs/01-PRD-v2.md §9.1",
+  "defects": [
+    {
+      "id": "D1",
+      "screen": "Create Workspace",
+      "route": "/workspace",
+      "expectedSignature": "hidden-cta",
+      "description": "Primary CTA below the fold, no scroll cue",
+      "prdExpectedSignal": "belowFoldPrimaryCta, high Hesitation"
+    },
+    {
+      "id": "D2",
+      "screen": "Connect Source",
+      "route": "/connect",
+      "expectedSignature": "ambiguous-cta",
+      "description": "Two competing CTAs; \"Continue\" is a no-op",
+      "prdExpectedSignal": "self-loop edge → DeadClick"
+    },
+    {
+      "id": "D3",
+      "screen": "Connect Source",
+      "route": "/connect",
+      "expectedSignature": "silent-validation",
+      "description": "Validation error at 1.11:1 contrast, present on screen but never announced",
+      "prdExpectedSignal": "error-text contrast + Loop; screen-reader segment fails"
+    },
+    {
+      "id": "D4",
+      "screen": "Invite Team",
+      "route": "/invite",
+      "expectedSignature": "dead-end",
+      "description": "No skip, broken back button",
+      "prdExpectedSignal": "high Blocked"
+    },
+    {
+      "id": "D5",
+      "screen": "Configure Webhook",
+      "route": "/webhook",
+      "expectedSignature": "offscreen-control",
+      "description": "Modal close button offscreen at 390px",
+      "prdExpectedSignal": "mobile-only dropout"
+    },
+    {
+      "id": "D6",
+      "screen": "Configure Webhook",
+      "route": "/webhook",
+      "expectedSignature": "jargon-gate",
+      "description": "Unexplained jargon",
+      "prdExpectedSignal": "low-domainLiteracy abandon"
+    }
+  ]
+}

@@ -240,37 +240,43 @@ URL → Cartographer → State Graph (desktop + mobile pass)
 ## 8. Feature requirements
 
 Priority: **P0** = demo dies without it · **P1** = differentiation · **P2** = only if ahead.
-State: `HAVE` = imported and working · `FIX` = imported but wrong · `EXTEND` = imported, needs
-more · `NEW` = does not exist.
+State: **`DONE`** = built and verified in this repo · `PARTIAL` = partly built, with the gap
+named · `FIX` = imported but wrong · `EXTEND` = imported, needs more · `NEW` = does not exist.
+(`HAVE` — "imported and working" — is retired: every former `HAVE` row has been re-checked
+against the code and is now `DONE` or `PARTIAL`.)
+
+**Last audited 2026-09-05** against the working tree, not against these docs. The per-subsystem
+detail, the shortcuts, and the places the other documents disagree with the code are in
+[`docs/CURRENT-STATE.md`](CURRENT-STATE.md).
 
 ### 8.1 Cartographer
 
 | ID | Feature | Pri | State |
 |---|---|---|---|
-| CR-01 | Target intake: URL + attestation gate | P0 | HAVE |
-| CR-02 | Playwright BFS crawl with priority queue (favour `continue\|next\|create\|connect\|invite\|setup`, penalise `help\|docs\|pricing\|blog\|terms\|logout`, decay by depth) | P0 | EXTEND — currently plain FIFO, explores footers as eagerly as the funnel |
-| CR-03 | Accessibility-tree extraction per state (`ariaSnapshot({mode:"ai", boxes:true})`) | P0 | HAVE — the technical keystone, works on real websites |
+| CR-01 | Target intake: URL + attestation gate | P0 | **DONE** — `POST /runs` returns 400 unless `attestation === true`, and writes an `Attestation` row with timestamp, user agent and any granted `allowActions`. |
+| CR-02 | Playwright BFS crawl with priority queue (favour `continue\|next\|create\|connect\|invite\|setup`, penalise `help\|docs\|pricing\|blog\|terms\|logout`, decay by depth) | P0 | EXTEND — **still a plain FIFO** (`queue.shift()`, cartographer.ts:754). No scoring, no decay; footers are explored as eagerly as the funnel. |
+| CR-03 | Accessibility-tree extraction per state (`ariaSnapshot({mode:"ai", boxes:true})`) | P0 | **DONE** — the technical keystone. `A11yNode` carries ref, role, name, box, landmark, ordinal, `data-testid`. |
 | CR-04 | **Composite state fingerprint** — `sha256(urlPattern \| sortedRoleNamePairs \| primaryHeading \| landmarkSkeleton)` | P0 | **DONE** — shipped alongside CR-07; the two were entangled. Under the old structure-only hash `/connect` and `/invite` collapsed into one node, so CR-07 produced no observable change until this landed. `softFingerprint` is not yet implemented. |
-| CR-05 | Action-edge extraction with `observedDelta`, `irreversible`, `latencyMs` | P0 | EXTEND |
-| CR-06 | Screenshots + 512×320 q70 thumbnails, **password/secret fields masked before write** | P0 | EXTEND |
+| CR-05 | Action-edge extraction with `observedDelta`, `irreversible`, `latencyMs` | P0 | PARTIAL — `ActionEdge` carries only `fromStateId, toStateId, action, targetRef, anchor`. **`observedDelta`, `irreversible` and `latencyMs` are absent from the schema.** Chorus derives irreversibility structurally instead. `latencyMs` is what blocks CR-12's ninth signal and the `slow-response` signature. |
+| CR-06 | Screenshots + 512×320 q70 thumbnails, **password/secret fields masked before write** | P0 | **DONE** — masking is real: `input[type=password]` plus any name or label matching `key|secret|token|password|passphrase|credential` is masked by Playwright *at capture time*, before the frame is encoded. Note: thumbnails are written at width 320 q70, not 512×320. |
 | CR-07 | Seeded field values per run (`{"API key": "mk_demo123"}`) or `placeholder`-derived fill | **P0** | **DONE** — highest-leverage single change in the project. Without it the crawler stops at `/connect`. It unblocks **D4**; D5 and D6 additionally needed the amended S4 blocklist (bare `send`), and D3 now needs CR-14. |
-| CR-08 | Graph persistence per run | P0 | HAVE |
-| CR-09 | **Multi-viewport crawl** — desktop 1280 + mobile 390, per-viewport static signals | P0 | NEW — this is what makes D5 detectable and the mobile segment real |
-| CR-10 | Safety: blocklist, budget, SSRF guard, bot UA, run-id header, robots.txt | P0 | EXTEND — only blocklist and budget exist |
-| CR-11 | Live crawl SSE (`state-found`, `edge-found`) with buffer eviction | P0 | EXTEND |
-| CR-12 | Static signals: below-fold CTA, offscreen interactives, WCAG contrast, `aria-live` presence, competing CTAs, jargon score, interactive count, **error-text contrast** | P0 | EXTEND — 5 of 9; error-text contrast is what classifies D3 |
-| CR-13 | `DRYRUN_REPLAY=<fixtureId>` — serve a cached crawl instead of crawling (L5) | **P0** | NEW |
-| CR-14 | **Validation probe** — on a form with validated or required fields, submit once with a deliberately invalid value, capture the resulting state's error signals (`errorTextContrast`, `hasAriaLive`, and whether the error appears in the accessibility tree at all), then correct the value and proceed | **P0** | NEW — **D3 depends on it.** CR-07 seeds a *valid* key, so the validation error is never triggered and the error state is never reached. Without a deliberate probe, D3's 1.9:1 error text is unobservable. |
+| CR-08 | Graph persistence per run | P0 | **DONE** — one write at the crawl boundary (`saveCrawlResult`). |
+| CR-09 | **Multi-viewport crawl** — desktop 1280 + mobile 390, per-viewport static signals | P0 | **DONE** — the mobile pass re-measures signals on states the desktop pass found (replaying recorded paths, never re-exploring, never adding a node) and stores them under `AppState.viewports`. Surfaces **D5**: the modal close button is inside the viewport at 1280 and outside it at 390. |
+| CR-10 | Safety: blocklist, budget, SSRF guard, bot UA, run-id header, robots.txt | P0 | PARTIAL — blocklist, budget and the per-run allowlist exist. **SSRF guard, `User-Agent: DryRun-Bot/1.0`, `X-DryRun-Run-Id` and `robots.txt` do not.** `ALLOW_PRIVATE_TARGETS` is declared in `.env` and read by no code. |
+| CR-11 | Live crawl SSE (`state-found`, `edge-found`) with buffer eviction | P0 | PARTIAL — `state-found` / `action-found` stream, and a replay buffer covers subscribers that connect after a fast crawl. **There is no eviction** — `sse.ts`'s `eventLog` grows for the process lifetime. |
+| CR-12 | Static signals: below-fold CTA, offscreen interactives, WCAG contrast, `aria-live` presence, competing CTAs, jargon score, interactive count, **error-text contrast** | P0 | PARTIAL — **8 of 9.** Below-fold CTA, below-fold interactives, tab-order names, offscreen interactives, primary-CTA contrast, competing CTAs, jargon score, error-text signals, interactive count and dead-end controls all land. The ninth, `medianActionLatencyMs`, is missing because nothing records per-action latency (CR-05). |
+| CR-13 | `DRYRUN_REPLAY=<fixtureId>` — serve a cached crawl instead of crawling (L5) | **P0** | **DONE** — `DRYRUN_REPLAY=<id>` or `runCrawl(..., { replayFixtureId })` short-circuits the browser, parses the fixture through `StateGraphSchema`, copies screenshots into the run and rewrites `screenshotPath`. Fixture ids are validated against path traversal. Ships `apps/engine/fixtures/meridian-v1` (345 KB, 7 states, 18 edges). |
+| CR-14 | **Validation probe** — on a form with validated or required fields, submit once with a deliberately invalid value, capture the resulting state's error signals (`errorTextContrast`, `hasAriaLive`, and whether the error appears in the accessibility tree at all), then correct the value and proceed | **P0** | **DONE** — CR-07 seeds a *valid* key, so the validation error was never triggered and the error state never reached. The probe submits a deliberately invalid value on every state with a form, measures the error, then corrects the value and proceeds. It creates no node: it runs after the graph is closed and attributes nothing if the submit changes the state fingerprint. Surfaces **D3**. |
 
 ### 8.2 Personas
 
 | ID | Feature | Pri | State |
 |---|---|---|---|
-| PS-01 | Trait vector: `role, domainLiteracy, patience{maxSteps,maxMs}, riskAversion, readingDepth, priorFamiliarity, device, inputMode, locale, weight` | P0 | EXTEND — `patience` is a bare number; `locale`, `archetype`, `label` missing |
-| PS-02 | **Ten archetypes as a declared constant array**, exclusion-weighted per L3 | P0 | EXTEND — 4 hardcoded in `server.ts` |
-| PS-03 | Population size 50–1000 with weights, exposed on Setup | P0 | NEW — hardcoded 1000 |
-| PS-04 | Task definition with a graph-checkable goal predicate | P0 | NEW — one `DUMMY_TASK`; Chorus takes no task at all |
-| PS-05 | Named segments derived from traits (`screen-reader`, `mobile`, `low-literacy`, `non-native`, `confident-desktop`) | P0 | NEW — required for ExclusionDelta |
+| PS-01 | Trait vector: `role, domainLiteracy, patience{maxSteps,maxMs}, riskAversion, readingDepth, priorFamiliarity, device, inputMode, locale, weight` | P0 | **DONE** — full ten-trait vector in `packages/core/src/types.ts`, including `patience{maxSteps,maxMs}`, `locale`, `archetype` and `label`. `maxMs` is carried but not enforced (see CH-03). |
+| PS-02 | **Ten archetypes as a declared constant array**, exclusion-weighted per L3 | P0 | **DONE** — `packages/core/src/archetypes.ts`. Ten archetypes, weights summing to 1.00, exclusion-weighted per L3, with `archetypeById` and `BASELINE_ARCHETYPE`. Replaces the four hardcoded in `server.ts`. Covered by `archetypes.test.ts`. |
+| PS-03 | Population size 50–1000 with weights, exposed on Setup | P0 | NEW — hardcoded 1000 in `run-defaults.ts`; Setup has no control. Unblocked, nothing depends on it. |
+| PS-04 | Task definition with a graph-checkable goal predicate | P0 | NEW — Chorus still takes no task; `computeHopDistances` treats any sink as the goal. **This is half of why D1 ranks #9.** |
+| PS-05 | Named segments derived from traits (`screen-reader`, `mobile`, `low-literacy`, `non-native`, `confident-desktop`) | P0 | NEW — required for ExclusionDelta, and the gate for the whole exclusion story. |
 
 **The ten archetypes and their weights** (sum = 1.00; deliberately not a conversion mix):
 
@@ -291,65 +297,65 @@ more · `NEW` = does not exist.
 
 | ID | Feature | Pri | State |
 |---|---|---|---|
-| CH-01 | Monte Carlo walker, 1000 personas × 2 tasks < 30 s, seeded PRNG | P0 | HAVE — the most complete imported module |
-| CH-02 | Task-aware walks with goal predicates | P0 | EXTEND — tasks not modelled at all |
-| CH-03 | **All ten traits affect the walk** | P0 | EXTEND — only 3 of 10 do; `device`, `inputMode`, `locale`, `riskAversion`, `readingDepth` are parsed then ignored |
-| CH-04 | **Per-segment metrics** — every `StateMetrics` computed per segment as well as overall | P0 | NEW — required for ExclusionDelta |
-| CH-05 | Provenance assignment per L6 | P0 | NEW — currently hardcoded `"modeled"` |
+| CH-01 | Monte Carlo walker, 1000 personas × 2 tasks < 30 s, seeded PRNG | P0 | **DONE** — 1000 personas over the cached fixture complete in well under a second. Seeded `mulberry32`; zero LLM calls, zero network. |
+| CH-02 | Task-aware walks with goal predicates | P0 | NEW — tasks are not modelled at all. Blocked on PS-04. |
+| CH-03 | **All ten traits affect the walk** | P0 | **DONE** — every trait changes the walk mechanically, nothing is prompted. Offscreen edges *removed* on mobile-390; unnamed controls *removed* for screen-reader; unannounced validation error sets `baseConfusion = 1.0`; non-tab-order affordance × 0.5 (and no penalty at all when focusability was not measured); non-native jargon × 1.6 and reading depth × 0.5; `riskAversion` wires the irreversibility term; `readingDepth < 0.4` strips helper text; below-fold controls are penalised for *every* persona, scaled by reading depth and patience. **`patience.maxMs` is not enforced** and is deliberately not approximated. |
+| CH-04 | **Per-segment metrics** — every `StateMetrics` computed per segment as well as overall | P0 | NEW — `StateMetrics` is computed for the population as a whole only. **The single highest-value unbuilt item**: it blocks AN-06's segments, AN-07 entirely, and AT-10. |
+| CH-05 | Provenance assignment per L6 | P0 | NEW — still hardcoded `"modeled"` on every `StateMetrics`. Analysis works around it by setting each finding's provenance itself. |
 | CH-06 | Bootstrap CI95 across 20 batches | P1 | NEW |
 
 ### 8.4 Analysis
 
 | ID | Feature | Pri | State |
 |---|---|---|---|
-| AN-01 | Per-state metrics | P0 | HAVE |
-| AN-02 | Friction Score | P0 | HAVE + tested |
-| AN-03 | Fix Value | P0 | EXTEND |
-| AN-04 | Failure-blame attribution per §6.3 | P0 | FIX — currently `impact = friction/100` |
-| AN-05 | Signature classifier, all 8, **mapping corrected** | P0 | FIX |
-| AN-06 | Evidence bundle: screenshot + the Observed fact + affected segments | P0 | EXTEND |
-| AN-07 | ExclusionDelta + ExclusionIndex | **P0** | NEW |
+| AN-01 | Per-state metrics | P0 | **DONE** |
+| AN-02 | Friction Score | P0 | **DONE** — `packages/core/src/scoring.ts`, covered by `scoring.test.ts`. |
+| AN-03 | Fix Value | P0 | PARTIAL — `fixValue = impact × reach × confidence` is wired and is what ranks the list, but `impact` is still a proxy. Blocked on AN-04. |
+| AN-04 | Failure-blame attribution per §6.3 | P0 | **NOT DONE** — `impact = frictionScore / 100` (`chorus.ts:561`). §6.3's failure-blame attribution does not exist. Do not mark this done. |
+| AN-05 | Signature classifier, all 8, **mapping corrected** | P0 | PARTIAL — **the mapping correction shipped** (`belowFoldPrimaryCta → hidden-cta`, which used to steal D5's `offscreen-control`), and the two-pass Observed/Modeled split is in place. 7 of 8 signatures are produced; **`slow-response` is unreachable** because nothing records latency. The remaining work is CR-05, not classifier work. |
+| AN-06 | Evidence bundle: screenshot + the Observed fact + affected segments | P0 | PARTIAL — `evidence` carries the screenshot and the measurement; `affectedSegments` and `groundedTraceIds` are written as empty arrays. Blocked on CH-04. |
+| AN-07 | ExclusionDelta + ExclusionIndex | **P0** | NEW — blocked on CH-04. |
 
 ### 8.5 Atlas
 
 | ID | Feature | Pri | State |
 |---|---|---|---|
-| AT-01 | 2D Atlas: SVG, force layout, contour circles, selection, inspector | P0 | EXTEND — exists but no data drives it |
-| AT-02 | **`StateMetrics` joined onto graph nodes on the wire** | **P0** | NEW — the single reason the map is currently cosmetic |
-| AT-03 | Friction in ramp colour + node elevation + ring count + numeral | P0 | FIX — `frictionScore` hardcoded 0, elevation 0, no ramp |
-| AT-04 | 3D Atlas: chart plane, textured nodes, plumb lines, Bézier edges, orbit | P0 | HAVE (cosmetic) |
-| AT-05 | Contour rings driven by friction | P1 | NEW |
-| AT-06 | Persona-flow particles + **the leak** | P1 | NEW — the best visual argument in the product |
-| AT-07 | Node inspector with real metrics, provenance badge, segment bar | P0 | EXTEND — every metric renders `—` |
-| AT-08 | **Ranked Findings view** | P0 | NEW — currently renders the string `"Findings view stub"` |
-| AT-09 | Persona replay — follow one named persona's walk through the map | P1 | NEW — the emotional hook; feasible because Chorus already produces walk paths |
-| AT-10 | Segment filter (view the map as one segment) | P1 | NEW — the exclusion story, visualised |
-| AT-11 | 2D fallback toggle, canvas never unmounted | P0 | HAVE |
+| AT-01 | 2D Atlas: SVG, force layout, contour circles, selection, inspector | P0 | PARTIAL — the component exists and is rendered inside the Live view from SSE `AppState[]`, with no metrics. `?view=atlas` still renders `"Atlas view stub"`. **No longer blocked — AT-02 shipped**; the work is routing the view and feeding it `AtlasNode[]`. |
+| AT-02 | **`StateMetrics` joined onto graph nodes on the wire** | **P0** | **DONE** — `GET /runs/:id/graph` returns `{ nodes: AtlasNode[], edges, truncated }` with `StateMetrics` joined per node, `null` (never a zero-filled object) where Chorus produced nothing. `AtlasNodeSchema` lives in `packages/core`. |
+| AT-03 | Friction in ramp colour + node elevation + ring count + numeral | P0 | PARTIAL — `packages/core/src/ramp.ts` (OKLab `frictionColor` / `frictionRing` / `frictionElevation`, 9 tests) and `FrictionMeter` are built and in use on Findings. The Atlas does not consume them yet. Blocked on AT-01. |
+| AT-04 | 3D Atlas: chart plane, textured nodes, plumb lines, Bézier edges, orbit | P0 | PARTIAL — renders, still cosmetic. Blocked on AT-01. |
+| AT-05 | Contour rings driven by friction | P1 | NEW — `frictionRing` exists. Blocked on AT-01. |
+| AT-06 | Persona-flow particles + **the leak** | P1 | NEW — blocked on AT-01 and on walk paths reaching the wire. |
+| AT-07 | Node inspector with real metrics, provenance badge, segment bar | P0 | PARTIAL — `AtlasInspector` renders four em dashes and an honest “metrics land once Analysis runs” line. Blocked on AT-01. |
+| AT-08 | **Ranked Findings view** | P0 | **DONE** — the real ranked Findings view. Joins findings to `AtlasNode` for screen name and metrics, ranked cards with friction meters and provenance badges, evidence lightbox, bias disclosure, “Generate tour from top 3”, zero state, and a failure state that distinguishes a missing run from an unreachable engine. Every number carries a badge; a null metric renders an em dash and badges Predicted. **No ExclusionIndex header** — AN-07 does not exist, and the space is left rather than faked. |
+| AT-09 | Persona replay — follow one named persona's walk through the map | P1 | NEW — needs `GET /runs/:id/walks`. Chorus already produces walk paths internally. |
+| AT-10 | Segment filter (view the map as one segment) | P1 | NEW — blocked on CH-04. |
+| AT-11 | 2D fallback toggle, canvas never unmounted | P0 | **DONE** |
 
 ### 8.6 Usher
 
 | ID | Feature | Pri | State |
 |---|---|---|---|
-| TR-01 | Generate steps from top-3 findings by Fix Value | P0 | HAVE |
-| TR-02 | Semantic anchor compiler + 4-tier runtime resolution | P0 | HAVE — `usher-rt` is 5,342 bytes, keep verbatim |
-| TR-03 | Copy grounded in the observed failure | P0 | HAVE (templates) |
-| TR-04 | Approve / edit / reject / restore queue | P0 | HAVE — most complete UI in the imported code |
-| TR-05 | Export `tour.json` + embed snippet, approval-gated server-side | P0 | HAVE |
-| TR-06 | **Tour plays live on Meridian** | P0 | EXTEND — snippet exists, injection does not |
-| TR-07 | **Drift: re-resolve every anchor against the v2 graph → `intact / re-anchored / broken`** | P0 | NEW |
-| TR-08 | Re-anchor proposal + human approval → tour v2 | P0 | NEW |
+| TR-01 | Generate steps from top-3 findings by Fix Value | P0 | **DONE** |
+| TR-02 | Semantic anchor compiler + 4-tier runtime resolution | P0 | **DONE** — built bundle measures 5,342 bytes, under the 6 KB budget. Fails cleanly when role+name stops matching, which is what makes L7 possible. |
+| TR-03 | Copy grounded in the observed failure | P0 | **DONE** (templates) |
+| TR-04 | Approve / edit / reject / restore queue | P0 | **DONE** |
+| TR-05 | Export `tour.json` + embed snippet, approval-gated server-side | P0 | **DONE** |
+| TR-06 | **Tour plays live on Meridian** | P0 | PARTIAL — the export snippet works and `usher-rt` plays a tour, but there is no injection: the operator pastes the snippet into the target page's console. Cross-origin scripting from the interface is the blocker. |
+| TR-07 | **Drift: re-resolve every anchor against the v2 graph → `intact / re-anchored / broken`** | P0 | NEW — needs a Meridian v2 with the renamed/moved control and a second crawl to re-resolve against. |
+| TR-08 | Re-anchor proposal + human approval → tour v2 | P0 | NEW — blocked on TR-07. |
 
 ### 8.7 Platform
 
 | ID | Feature | Pri | State |
 |---|---|---|---|
-| PL-01 | **Run orchestrator state machine** `crawl → chorus → analyse → tour → done`, with `pct`, `DEGRADED` and cancel | **P0** | NEW — everything needed exists in pieces; nothing connects them |
-| PL-02 | Attestation gate + audit log | P0 | HAVE |
-| PL-03 | Run history on Launchpad | P1 | NEW |
-| PL-04 | Live stage rail via SSE | P0 | HAVE — genuinely good, keep |
-| PL-05 | `/health`: engine, browser, provider, replay mode | P1 | EXTEND |
-| PL-06 | **Evaluation harness** — `pnpm demo` asserts *n* of 6 planted defects in the top 8 findings and prints precision/recall | **P0** | NEW |
-| PL-07 | Root scripts (`dev`, `build`, `demo`), README, `.env.example` | P0 | NEW — the old repo had no scripts at all |
+| PL-01 | **Run orchestrator state machine** `crawl → chorus → analyse → tour → done`, with `pct`, `DEGRADED` and cancel | **P0** | **DONE** — `orchestrator.ts`. Sequential awaited stages with declared monotonic pct bands (crawl 0–45, chorus 45–70, analysis 70–85, tour 85–100), cancel checked between units of work, crawl fatal and every later stage degrading with `degradedFor`. The stage is named `analysis`, not `analyse` — see CURRENT-STATE §6. |
+| PL-02 | Attestation gate + audit log | P0 | **DONE** |
+| PL-03 | Run history on Launchpad | P1 | NEW — needs a `GET /runs` list endpoint. |
+| PL-04 | Live stage rail via SSE | P0 | **DONE** — the rail now shows the four stages that do work; `RunStage` was narrowed to five values and no longer carries the cut `scouts`/`calibration`. |
+| PL-05 | `/health`: engine, browser, provider, replay mode | P1 | PARTIAL — `/health` returns `{status, engine, version}` only. No browser, provider or replay-mode reporting. |
+| PL-06 | **Evaluation harness** — `pnpm demo` asserts *n* of 6 planted defects in the top 8 findings and prints precision/recall | **P0** | **DONE** — `pnpm demo` (cached) / `pnpm demo:live`. Ground truth is a committed file, `apps/demo/planted-defects.json`, read not embedded; a defect matches a finding by (expected signature + route), never by text; exits non-zero below 5 of 6. Current: **5 of 6 in the top 8, 6 of 6 found, 2 FPs, precision 0.750, recall 0.833, 0.6 s.** |
+| PL-07 | Root scripts (`dev`, `build`, `demo`), README, `.env.example` | P0 | PARTIAL — root `dev` / `build` / `demo` / `demo:live` / `test` / `db:*` scripts and a complete `.env.example` all exist. **There is no README.** Several vars in `.env.example` are read by no code. |
 
 ---
 
@@ -363,7 +369,7 @@ workspace → Connect data source → Invite team → Configure webhook → Dash
 |---|---|---|---|---|
 | D1 | Create Workspace | Primary CTA below the fold, no scroll cue | `belowFoldPrimaryCta`, high Hesitation | ✅ already proven |
 | D2 | Connect Source | Two competing CTAs; "Continue" is a no-op | self-loop edge → DeadClick | ✅ already proven |
-| D3 | Connect Source | Validation error at 1.9:1 contrast, no `aria-live` | error-text contrast + Loop; screen-reader segment fails | ❌ **no longer reached** — CR-07 seeds a valid key, so the error never fires. Needs CR-14 to trigger it and CR-12 to classify it |
+| D3 | Connect Source | Validation error at **1.11:1** contrast (`#3a3a3a` on `#333333`), present on screen but never announced — no `role=alert`, no `aria-live` | error-text contrast + Loop; screen-reader segment fails | ✅ caught — CR-14's validation probe provokes the error and CR-12's `errorTextContrast` classifies it as `silent-validation` |
 | D4 | Invite Team | No skip, broken back button | high Blocked | ✅ unblocked by CR-07 — `/invite` is reached and the dead "Back" click is observed as a self-loop |
 | D5 | Configure Webhook | Modal close button offscreen at 390px | mobile-only dropout | ⚠️ reachable now — `/webhook` and the modal are both crawled; needs **CR-09** to see the control go offscreen at 390px |
 | D6 | Configure Webhook | Unexplained jargon | low-`domainLiteracy` abandon | ⚠️ reachable now — `/webhook` is crawled; needs **CR-12**'s `jargonScore` to classify it |

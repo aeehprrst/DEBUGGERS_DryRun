@@ -11,8 +11,8 @@ export default async function RunLayout({
   const { id } = await params;
 
   return (
-    <div className="min-h-full bg-chart-deep text-ink-0">
-      <header className="fixed inset-x-0 top-0 z-10 flex h-14 items-center justify-between border-b border-rule bg-chart-deep px-6">
+    <div className="min-h-full bg-deep text-ink-0">
+      <header className="fixed inset-x-0 top-0 z-10 flex h-14 items-center justify-between border-b border-rule bg-deep px-6">
         <div className="flex items-center gap-3">
           <Link
             href="/"

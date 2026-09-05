@@ -91,7 +91,7 @@ export default function Atlas2D({
   const selectedState = nodes.find((n) => n.id === selectedId) ?? null;
 
   return (
-    <div className="relative h-full min-h-[440px] overflow-hidden rounded-lg border border-rule bg-chart-shelf">
+    <div className="relative h-full min-h-[440px] overflow-hidden rounded-lg border border-rule bg-shelf">
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="h-full w-full"
@@ -131,7 +131,7 @@ export default function Atlas2D({
 
             {positionedNodes.map((node) => {
               const isSelected = node.id === selectedId;
-              const ringColor = isSelected ? "#FF5A00" : "#22d3ee";
+              const ringColor = isSelected ? "#FF7A45" : "#8FC7D6";
               return (
                 <g
                   key={node.id}
@@ -154,7 +154,7 @@ export default function Atlas2D({
                   <circle r={NODE_RADIUS + 8} fill="none" stroke={ringColor} strokeOpacity={0.25} />
                   <circle
                     r={NODE_RADIUS}
-                    fill="#122333"
+                    fill="#17303E"
                     stroke={ringColor}
                     strokeWidth={isSelected ? 2.5 : 1.5}
                   />

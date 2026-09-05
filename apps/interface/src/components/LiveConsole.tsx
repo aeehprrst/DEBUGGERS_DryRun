@@ -28,15 +28,10 @@ type RunEvent =
   | { t: "scout-end"; personaId: string; result: string }
   | { t: "error"; message: string; fatal: boolean };
 
-const STAGES: RunStage[] = [
-  "crawl",
-  "scouts",
-  "calibration",
-  "chorus",
-  "analysis",
-  "tour",
-  "done",
-];
+// The rail shows the four stages that do work; "done" is a terminal marker,
+// not a row. Derived from the enum so a new stage cannot be added to the
+// pipeline without appearing here.
+const STAGES: RunStage[] = ["crawl", "chorus", "analysis", "tour"];
 
 const MAX_FEED_LENGTH = 200;
 
@@ -123,7 +118,7 @@ export default function LiveConsole({ runId }: { runId: string }) {
             aria-pressed={viewMode === "3d"}
             className={`rounded-md border px-3 py-1 text-xs font-semibold uppercase tracking-[0.06em] ${
               viewMode === "3d"
-                ? "border-marker bg-marker text-chart-deep"
+                ? "border-marker bg-marker text-deep"
                 : "border-rule-strong text-ink-1 hover:text-ink-0"
             }`}
           >
@@ -135,7 +130,7 @@ export default function LiveConsole({ runId }: { runId: string }) {
             aria-pressed={viewMode === "2d"}
             className={`rounded-md border px-3 py-1 text-xs font-semibold uppercase tracking-[0.06em] ${
               viewMode === "2d"
-                ? "border-marker bg-marker text-chart-deep"
+                ? "border-marker bg-marker text-deep"
                 : "border-rule-strong text-ink-1 hover:text-ink-0"
             }`}
           >
@@ -150,7 +145,7 @@ export default function LiveConsole({ runId }: { runId: string }) {
       </div>
 
       <div className="flex flex-col gap-6">
-        <section className="rounded-lg border border-rule bg-chart-shelf p-5">
+        <section className="rounded-lg border border-rule bg-shelf p-5">
           <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-1">
             Stage
           </h2>
@@ -167,7 +162,7 @@ export default function LiveConsole({ runId }: { runId: string }) {
                         ? "bg-marker"
                         : isPast
                           ? "bg-flow"
-                          : "bg-chart-abyss"
+                          : "bg-abyss"
                     }`}
                   />
                   <span className={isCurrent ? "text-ink-0" : "text-ink-2"}>
@@ -184,7 +179,7 @@ export default function LiveConsole({ runId }: { runId: string }) {
           </ul>
         </section>
 
-        <section className="rounded-lg border border-rule bg-chart-shelf p-5">
+        <section className="rounded-lg border border-rule bg-shelf p-5">
           <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-1">
             Scout feed
           </h2>
@@ -198,7 +193,7 @@ export default function LiveConsole({ runId }: { runId: string }) {
               scoutSteps.map((step, index) => (
                 <li
                   key={index}
-                  className="rounded-md border-l-2 border-flow bg-chart-shoal px-3 py-2"
+                  className="rounded-md border-l-2 border-flow bg-shoal px-3 py-2"
                 >
                   <p className="text-ink-0">{step.thought}</p>
                   <p className="mt-1 font-mono text-[11px] text-ink-2">
@@ -210,7 +205,7 @@ export default function LiveConsole({ runId }: { runId: string }) {
           </ul>
         </section>
 
-        <section className="flex-1 rounded-lg border border-rule bg-chart-shelf p-5">
+        <section className="flex-1 rounded-lg border border-rule bg-shelf p-5">
           <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-1">
             Event feed
           </h2>

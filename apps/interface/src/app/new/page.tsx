@@ -69,7 +69,7 @@ function RunSetupForm() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col gap-6 bg-chart-deep px-6 py-16 text-ink-0">
+    <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col gap-6 bg-deep px-6 py-16 text-ink-0">
       <div>
         <a href="/" className="text-sm text-ink-1 hover:text-ink-0">
           ← Back
@@ -79,7 +79,7 @@ function RunSetupForm() {
         </h1>
       </div>
 
-      <section className="rounded-lg border border-rule bg-chart-shelf p-5">
+      <section className="rounded-lg border border-rule bg-shelf p-5">
         <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-1">
           1. Target URL
         </h2>
@@ -93,7 +93,7 @@ function RunSetupForm() {
           value={targetUrl}
           onChange={(event) => setTargetUrl(event.target.value)}
           placeholder="http://localhost:5173"
-          className="mt-1 h-10 w-full rounded-md border border-rule bg-chart-abyss px-3 font-mono text-sm text-ink-0 placeholder:text-ink-2 outline-none focus:border-marker focus:ring-3 focus:ring-marker/20"
+          className="mt-1 h-10 w-full rounded-md border border-rule bg-abyss px-3 font-mono text-sm text-ink-0 placeholder:text-ink-2 outline-none focus:border-marker focus:ring-3 focus:ring-marker/20"
         />
       </section>
 
@@ -114,11 +114,11 @@ function RunSetupForm() {
         </label>
       </section>
 
-      <section className="rounded-lg border border-rule bg-chart-shelf p-5">
+      <section className="rounded-lg border border-rule bg-shelf p-5">
         <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-1">
           3. Preset task
         </h2>
-        <div className="mt-3 rounded-md border border-rule bg-chart-shoal px-4 py-3">
+        <div className="mt-3 rounded-md border border-rule bg-shoal px-4 py-3">
           <p className="text-sm text-ink-0">Complete initial setup</p>
           <p className="mt-1 font-mono text-xs text-ink-2">
             Start: /signup → Goal: &quot;Your workspace is ready&quot;
@@ -132,12 +132,12 @@ function RunSetupForm() {
         </p>
       )}
 
-      <div className="sticky bottom-0 -mx-6 border-t border-rule bg-chart-deep px-6 py-4">
+      <div className="sticky bottom-0 -mx-6 border-t border-rule bg-deep px-6 py-4">
         <button
           type="button"
           disabled={!attested || targetUrl.length === 0 || isLaunching}
           onClick={handleLaunch}
-          className="h-11 w-full rounded-md bg-marker text-sm font-medium text-chart-deep transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-chart-shoal disabled:text-ink-2 disabled:hover:brightness-100"
+          className="h-11 w-full rounded-md bg-marker text-sm font-medium text-deep transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-shoal disabled:text-ink-2 disabled:hover:brightness-100"
         >
           {isLaunching ? "Launching…" : "Launch Dry Run"}
         </button>

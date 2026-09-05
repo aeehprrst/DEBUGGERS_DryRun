@@ -19,6 +19,11 @@ const WEIGHTS = {
   goal: 2.0,
   affordance: 1.0,
   jargon: 1.5,
+  // TRD §5.4's transition policy carries `- w_risk · irreversibility(e) ·
+  // p.riskAversion`. The term was in the spec and missing from the code, so
+  // riskAversion was parsed and ignored (CH-03 names it). Added, not changed:
+  // every pre-existing weight above and below is untouched.
+  risk: 1.0,
   giveUpBase: -1.0,
   temperature: 1.0,
 };
@@ -96,12 +101,11 @@ export function jargonLoad(state: AppState): number {
 const CTA_VERB_PATTERN =
   /\b(continue|next|submit|sign up|sign in|log in|create|connect|get started|save|confirm)\b/i;
 
-function affordance(edge: ActionEdge, fromState: AppState): number {
-  const offscreen = new Set(
-    ((fromState.staticSignals as Record<string, unknown> | undefined)?.offscreenInteractives as
-      | string[]
-      | undefined) ?? [],
-  );
+// The trait-independent half of affordance: how much this control looks like a
+// way forward at all. `perceiveEdges` applies the per-persona multipliers on
+// top of it (CH-03), and takes the offscreen set from the persona's own
+// measured viewport rather than always the desktop one.
+function baseAffordance(edge: ActionEdge, offscreen: ReadonlySet<string>): number {
   const inViewport = offscreen.has(edge.anchor.name) ? 0 : 1;
   const hasName = edge.anchor.name.trim().length > 0 ? 1 : 0;
   const isPrimaryCta = CTA_VERB_PATTERN.test(edge.anchor.name) ? 1 : 0;
@@ -115,6 +119,255 @@ function goalAlignment(fromDist: number, toDist: number): number {
   if (!Number.isFinite(fromDist) || !Number.isFinite(toDist)) return 0;
   const extraHops = Math.max(0, toDist - (fromDist - 1));
   return Math.pow(0.7, extraHops);
+}
+
+// ---------- CH-03 · trait enforcement (TRD §5.4) ----------
+//
+// Every trait below changes the walk *mechanically* — an edge removed from the
+// set, a multiplier on an affordance, a cap on the step count (CLAUDE.md §6.8).
+// Nothing here prompts a model to behave a certain way, and nothing here is a
+// role-play instruction. That is the whole point: a screen-reader persona does
+// worse on Meridian's /connect because the error text is genuinely unreachable
+// through the accessibility tree, not because a model was told to struggle.
+//
+// Values marked TRD are stated verbatim in §5.4's trait-enforcement table. The
+// rest are declared constants — not fitted, and there is no calibration
+// subsystem to fit them with (CLAUDE.md §5).
+const TRAIT = {
+  /** TRD: "Below-fold controls get affordance × 0.35" on mobile-390. */
+  mobileBelowFoldAffordance: 0.35,
+  /** TRD: "Edges not reachable in tab order get affordance × 0.5." */
+  keyboardUnreachableAffordance: 0.5,
+  /** TRD: "`jargonLoad` effect multiplied by 1.6" for a non-native reader. */
+  nonNativeJargonMultiplier: 1.6,
+  /** TRD: "`readingDepth` effect halved" for a non-native reader. */
+  nonNativeReadingDepthMultiplier: 0.5,
+  /** TRD: an unannounced error sets baseConfusion to this for a screen reader. */
+  screenReaderUnannouncedConfusion: 1.0,
+  /** TRD: "Below `0.4`, helper-text and tooltip nodes are stripped." */
+  readingDepthHintThreshold: 0.4,
+
+  // Declared, not stated by the TRD:
+  /** How much perceived helper text calms a fork. */
+  hintRelief: 0.3,
+  /** Nobody scrolls never: the floor a below-fold control keeps even for the
+   *  least patient skimmer. */
+  belowFoldFloor: 0.15,
+  /** Split of the scroll tendency between reading depth and patience. */
+  belowFoldReadingWeight: 0.6,
+  /** maxSteps at which patience stops adding to scroll tendency — the most
+   *  patient declared archetype (PERSONA_ARCHETYPES: confident-desktop, 24). */
+  patienceScrollReference: 24,
+} as const;
+
+/** Which measured viewport a persona's device reads from. */
+function viewportKeyFor(device: PersonaTraitVector["device"]): string {
+  // desktop-1440 is not crawled — a control that fits at 1280 fits at 1440, so
+  // the laptop measurement is the conservative stand-in. Named here rather than
+  // silently defaulting, because reading a missing key as "nothing offscreen"
+  // is exactly the kind of quiet zero §6.5 forbids.
+  return device === "mobile-390" ? "mobile-390" : "laptop-1280";
+}
+
+function signalsFor(state: AppState, device: PersonaTraitVector["device"]): Record<string, unknown> {
+  const key = viewportKeyFor(device);
+  const perViewport = (state.viewports as Record<string, Record<string, unknown>> | undefined)?.[key];
+  return perViewport ?? (state.staticSignals as Record<string, unknown>) ?? {};
+}
+
+function namesFrom(signals: Record<string, unknown>, key: string): string[] | null {
+  const value = signals[key];
+  if (Array.isArray(value)) return value as string[];
+  // Absent means "this crawl did not measure it" — for tabbableNames that has
+  // to stay distinguishable from "measured, nothing is focusable".
+  return null;
+}
+
+/**
+ * TRD §5.4 — `readingDepth`, and the non-native halving that applies to it.
+ * Below the threshold, helper text is not perceived at all.
+ */
+function effectiveReadingDepth(persona: PersonaTraitVector): number {
+  return persona.locale === "non-native"
+    ? persona.readingDepth * TRAIT.nonNativeReadingDepthMultiplier
+    : persona.readingDepth;
+}
+
+/**
+ * Helper-text and tooltip nodes on a screen. Presence only: parseAriaSnapshot
+ * keeps a node's role but drops a paragraph's text payload, so the walk can
+ * know a hint is *there* and not what it says. That is enough for the
+ * mechanical rule and the comment is here so nobody later reads this as
+ * comprehension.
+ */
+const HINT_ROLES = new Set(["paragraph", "note", "tooltip", "definition"]);
+
+function hasHintText(state: AppState): boolean {
+  return state.a11yTree.some((n) => HINT_ROLES.has(n.role));
+}
+
+/**
+ * CR-14's signal, read by the walk. An error the app renders but never
+ * announces does not exist for a screen-reader persona — no role="alert", no
+ * aria-live, no aria-invalid/aria-describedby pairing.
+ */
+function hasUnannouncedError(state: AppState): boolean {
+  const s = (state.staticSignals as Record<string, unknown>) ?? {};
+  return s.errorText != null && s.errorAnnounced === false;
+}
+
+/**
+ * TRD §5.4's `baseConfusion(s)` — how hard this screen is to make sense of for
+ * *this* persona. Feeds both the give-up term and the softmax temperature.
+ */
+function baseConfusion(persona: PersonaTraitVector, state: AppState, isFork: boolean): number {
+  // The strongest case first: for a screen-reader persona a silently-rejected
+  // submission is total confusion, because nothing announced that anything
+  // happened. TRD §5.4 sets this to 1.0 outright.
+  if (persona.inputMode === "screen-reader" && hasUnannouncedError(state)) {
+    return TRAIT.screenReaderUnannouncedConfusion;
+  }
+
+  let confusion = jargonLoad(state);
+  if (persona.locale === "non-native") {
+    confusion = Math.min(1, confusion * TRAIT.nonNativeJargonMultiplier);
+  }
+
+  // A hint only helps at a fork — there is nothing to disambiguate on a screen
+  // with one way forward — and only if this persona reads to that depth.
+  if (
+    isFork &&
+    hasHintText(state) &&
+    effectiveReadingDepth(persona) >= TRAIT.readingDepthHintThreshold
+  ) {
+    confusion *= 1 - TRAIT.hintRelief;
+  }
+
+  return Math.min(1, Math.max(0, confusion));
+}
+
+/**
+ * How likely this persona is to scroll to something below the fold.
+ *
+ * CH-03 item 4 — the modelling gap the harness exposed. A below-fold primary
+ * CTA used to be penalised only on mobile, so D1 (Meridian's /workspace, whose
+ * "Create workspace" button sits under six paragraphs of filler) barely moved
+ * the simulation and ranked below the top 8. People do not scroll: a
+ * below-fold control is discounted for *every* persona, scaled by how deeply
+ * they read and how long they are willing to stay.
+ */
+function scrollTendency(persona: PersonaTraitVector): number {
+  const patienceFrac = Math.min(
+    1,
+    persona.patience.maxSteps / TRAIT.patienceScrollReference,
+  );
+  const willingness =
+    TRAIT.belowFoldReadingWeight * effectiveReadingDepth(persona) +
+    (1 - TRAIT.belowFoldReadingWeight) * patienceFrac;
+  return TRAIT.belowFoldFloor + (1 - TRAIT.belowFoldFloor) * willingness;
+}
+
+/**
+ * TRD §5.4 — `riskAversion` finally wired.
+ *
+ * Irreversibility is derived structurally from the crawled graph: an edge is
+ * irreversible when, having taken it, no sequence of navigable edges returns
+ * you to where you were. That is a real property of the interface and the
+ * crawler already recorded everything needed to compute it.
+ *
+ * Shortcut, named: CR-05 specifies a per-edge `irreversible` flag observed in
+ * the browser (a confirmation dialog, a POST with no undo). That is unbuilt, so
+ * this stands in for it. Where CR-05 lands, this becomes the fallback for edges
+ * the browser could not judge.
+ */
+function computeIrreversibility(
+  graph: StateGraph,
+  navigableByFrom: Map<string, ActionEdge[]>,
+): Map<string, number> {
+  const reachable = new Map<string, Set<string>>();
+  for (const startId of Object.keys(graph.nodes)) {
+    const seen = new Set<string>();
+    const queue = [startId];
+    let head = 0;
+    while (head < queue.length) {
+      const current = queue[head++];
+      for (const edge of navigableByFrom.get(current) ?? []) {
+        if (seen.has(edge.toStateId)) continue;
+        seen.add(edge.toStateId);
+        queue.push(edge.toStateId);
+      }
+    }
+    reachable.set(startId, seen);
+  }
+
+  const out = new Map<string, number>();
+  for (const edge of graph.edges) {
+    if (!isNavigable(edge)) continue;
+    const key = edgeKey(edge);
+    if (edge.fromStateId === edge.toStateId) {
+      out.set(key, 0); // a self-loop changes nothing, so nothing is lost
+      continue;
+    }
+    const canReturn = reachable.get(edge.toStateId)?.has(edge.fromStateId) ?? false;
+    out.set(key, canReturn ? 0 : 1);
+  }
+  return out;
+}
+
+function edgeKey(edge: ActionEdge): string {
+  return `${edge.fromStateId} ${edge.anchor.role} ${edge.anchor.name} ${edge.anchor.ordinal} ${edge.toStateId}`;
+}
+
+/**
+ * The edge set as *this* persona can perceive and reach it, with each surviving
+ * edge's affordance already adjusted for their traits.
+ *
+ * Removal, not discounting, for the two cases where the control is genuinely
+ * not there: a control off the side of a 390px viewport cannot be tapped, and a
+ * control with no accessible name is not announced to a screen reader at all.
+ * TRD §5.4: "`device` and `inputMode` are the two that make the exclusion claim
+ * real."
+ */
+function perceiveEdges(
+  persona: PersonaTraitVector,
+  state: AppState,
+  edges: ActionEdge[],
+): { edge: ActionEdge; affordance: number }[] {
+  const signals = signalsFor(state, persona.device);
+  const offscreen = new Set(namesFrom(signals, "offscreenInteractives") ?? []);
+  const belowFold = new Set(namesFrom(signals, "belowFoldInteractives") ?? []);
+  const tabbable = namesFrom(signals, "tabbableNames");
+
+  const perceived: { edge: ActionEdge; affordance: number }[] = [];
+
+  for (const edge of edges) {
+    const name = edge.anchor.name;
+
+    // device: mobile-390 — offscreen at this width means gone, not faint.
+    if (persona.device === "mobile-390" && offscreen.has(name)) continue;
+
+    // inputMode: screen-reader — perception is the accessibility tree, and an
+    // unnamed control is not in it in any actionable form.
+    if (persona.inputMode === "screen-reader" && name.trim().length === 0) continue;
+
+    let value = baseAffordance(edge, offscreen);
+
+    if (belowFold.has(name)) {
+      value *= scrollTendency(persona);
+      if (persona.device === "mobile-390") value *= TRAIT.mobileBelowFoldAffordance;
+    }
+
+    // inputMode: keyboard-only. `tabbable === null` means this crawl never
+    // measured focusability, so no multiplier is applied — an unmeasured
+    // screen must not read as a screen that failed.
+    if (persona.inputMode === "keyboard-only" && tabbable !== null && !tabbable.includes(name)) {
+      value *= TRAIT.keyboardUnreachableAffordance;
+    }
+
+    perceived.push({ edge, affordance: value });
+  }
+
+  return perceived;
 }
 
 // ---------- graph structure helpers ----------
@@ -252,6 +505,10 @@ export function runChorusSimulation(
     navigableByFrom.set(edge.fromStateId, list);
   }
 
+  // CH-03 — irreversibility is a property of the graph, not of a persona, so
+  // it is computed once and read by every walk.
+  const irreversibility = computeIrreversibility(graph, navigableByFrom);
+
   const counts = allocatePersonaCounts(personaMix, totalPersonas);
   const random = mulberry32(0xc0ffee);
 
@@ -268,6 +525,7 @@ export function runChorusSimulation(
         graph,
         navigableByFrom,
         hopDistances,
+        irreversibility,
         accumulators,
         random,
       );
@@ -333,10 +591,17 @@ function simulateOnePersona(
   graph: StateGraph,
   navigableByFrom: Map<string, ActionEdge[]>,
   hopDistances: Map<string, number>,
+  irreversibility: Map<string, number>,
   accumulators: Map<string, StateAccumulator>,
   random: () => number,
 ): "success" | "dropout" | "blocked" {
-  const patience = Math.max(1, Math.round(persona.patience));
+  // PS-01 — patience is now two budgets. `maxSteps` is enforced here as a hard
+  // cap (TRD §5.4). `maxMs` is NOT enforced and is not silently approximated:
+  // the walk has no clock, because nothing measures per-action latency yet
+  // (`medianActionLatencyMs` is the one static signal still missing, the same
+  // gap that makes `slow-response` unreachable). Faking a duration from step
+  // count would be a fabricated number (CLAUDE.md §6.5).
+  const patience = Math.max(1, Math.round(persona.patience.maxSteps));
   const stepCeiling = Math.min(HARD_STEP_CEILING, patience + MAX_STEP_BUFFER);
 
   const visited = new Map<string, number>();
@@ -364,15 +629,37 @@ function simulateOnePersona(
       return "success";
     }
 
-    const dCurrent = hopDistances.get(currentId) ?? Infinity;
-    const confusion = jargonLoad(state);
+    // CH-03 — the edge set this persona can actually perceive and reach.
+    // Filtering happens before anything else, because an edge that is removed
+    // must not contribute to the softmax at all.
+    const perceived = perceiveEdges(persona, state, edges);
+    if (perceived.length === 0) {
+      // Every way forward is unreachable for this persona even though the
+      // screen has out-edges. That is being blocked by the interface, not
+      // arriving at the end of the flow, and the two must not be conflated.
+      if (acc) acc.blocked += 1;
+      recordVisitCounts(accumulators, visited);
+      return "blocked";
+    }
 
-    const utilities = edges.map((edge) => {
+    const dCurrent = hopDistances.get(currentId) ?? Infinity;
+    const confusion = baseConfusion(persona, state, perceived.length > 1);
+    // TRD §5.4 — the jargon term is multiplied by 1.6 for a non-native reader.
+    // Applied to the term, not to `confusion`, so the give-up and temperature
+    // terms are not double-counted.
+    const jargonPenalty =
+      WEIGHTS.jargon *
+      jargonLoad(state) *
+      (1 - persona.domainLiteracy) *
+      (persona.locale === "non-native" ? TRAIT.nonNativeJargonMultiplier : 1);
+
+    const utilities = perceived.map(({ edge, affordance }) => {
       const dTo = hopDistances.get(edge.toStateId) ?? Infinity;
       return (
         WEIGHTS.goal * goalAlignment(dCurrent, dTo) +
-        WEIGHTS.affordance * affordance(edge, state) -
-        WEIGHTS.jargon * confusion * (1 - persona.domainLiteracy)
+        WEIGHTS.affordance * affordance -
+        jargonPenalty -
+        WEIGHTS.risk * (irreversibility.get(edgeKey(edge)) ?? 0) * persona.riskAversion
       );
     });
 
@@ -387,7 +674,7 @@ function simulateOnePersona(
     const probs = softmax(utilities, temperature);
     const choice = weightedPick(probs, random());
 
-    if (choice === edges.length) {
+    if (choice === perceived.length) {
       if (acc) {
         acc.dropout += 1;
         acc.stepsBeforeAdvance.push(hesitationCounter);
@@ -396,7 +683,7 @@ function simulateOnePersona(
       return "dropout";
     }
 
-    const chosenEdge = edges[choice];
+    const chosenEdge = perceived[choice].edge;
     const dTo = hopDistances.get(chosenEdge.toStateId) ?? Infinity;
     const isAdvancing = Number.isFinite(dTo) && dTo < dCurrent;
     const isSelfLoop = chosenEdge.toStateId === currentId;

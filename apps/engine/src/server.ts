@@ -10,13 +10,23 @@ import {
 } from "@dry-run/core";
 import type {
   AllowActions,
-  PersonaTraitVector,
+  AtlasNode,
   SeededValues,
   StateGraph,
+  StateMetrics,
 } from "@dry-run/core";
 import { runAnalysis } from "./brain/analysis.js";
 import { runChorusSimulation } from "./brain/chorus.js";
 import { cancelRun, startRun } from "./orchestrator.js";
+// PL-06 — these moved to their own module so the evaluation harness can run the
+// same population and the same Meridian defaults without importing this file,
+// which listens on a port at module scope.
+import {
+  DEFAULT_PERSONA_MIX,
+  DEFAULT_POPULATION_SIZE,
+  defaultAllowActionsFor,
+  defaultSeededValuesFor,
+} from "./run-defaults.js";
 import { createTourForRun } from "./usher/persist.js";
 import { bootDatabase, prisma, toCoreFinding, toCoreTourStep } from "./db.js";
 import { emitRunEvent, subscribeToRun } from "./sse.js";
@@ -29,45 +39,6 @@ import { emitRunEvent, subscribeToRun } from "./sse.js";
 // the engine's address for its own rewrite destination.
 const ENGINE_ORIGIN = "http://localhost:4000";
 
-// CR-07 — Meridian's /connect rejects any API key that doesn't start with
-// "mk_" (PRD §9.1), which is what stops the crawl short of /invite, /webhook
-// and /dashboard. A real operator types their own seeded values on Setup; this
-// is the bundled demo target's default so the demo run needs no request body.
-// Scoped to Meridian's dev origin so it can never leak onto a third-party
-// target — there it would just be a wrong value typed into someone's form.
-const MERIDIAN_ORIGIN = "http://localhost:5173";
-const MERIDIAN_SEEDED_VALUES: SeededValues = { "API key": "mk_demo123" };
-
-function defaultSeededValuesFor(targetUrl: string): SeededValues {
-  try {
-    return new URL(targetUrl).origin === MERIDIAN_ORIGIN
-      ? MERIDIAN_SEEDED_VALUES
-      : {};
-  } catch {
-    return {};
-  }
-}
-
-// TRD S4 — the demo target's standing exception, scoped to Meridian's dev
-// origin exactly as the seeded values are, so it can never authorise clicking
-// a blocked control on a third-party app. Every other target starts with no
-// exceptions and must name them explicitly on the request.
-//
-// Note this is belt-and-braces rather than load-bearing today: the amended S4
-// blocklist no longer matches bare "send", so "Send invite" is permitted
-// outright and Meridian maps fully with an empty allowlist (verified). It
-// keeps the funnel reachable if `send` is ever restored to the blocklist.
-const MERIDIAN_ALLOW_ACTIONS: AllowActions = ["Send invite"];
-
-function defaultAllowActionsFor(targetUrl: string): AllowActions {
-  try {
-    return new URL(targetUrl).origin === MERIDIAN_ORIGIN
-      ? MERIDIAN_ALLOW_ACTIONS
-      : [];
-  } catch {
-    return [];
-  }
-}
 const USHER_RT_BUNDLE_PATH = path.join(
   process.cwd(),
   "..",
@@ -77,61 +48,6 @@ const USHER_RT_BUNDLE_PATH = path.join(
   "dist",
   "usher-rt.js",
 );
-
-// PS-03 is unbuilt (population size is not yet operator-configurable), so the
-// orchestrator needs a declared default rather than a literal buried in a
-// route handler.
-const DEFAULT_POPULATION_SIZE = 1000;
-
-// TRD §5.3's ten shipped archetypes, trimmed to a small default mix — no
-// per-run persona configuration exists yet, so the orchestrator's chorus stage
-// needs something reasonable to simulate against with no request body.
-const DEFAULT_PERSONA_MIX: PersonaTraitVector[] = [
-  {
-    role: "Impatient Founder",
-    domainLiteracy: 0.6,
-    patience: 6,
-    riskAversion: 0.3,
-    readingDepth: 0.2,
-    priorFamiliarity: 0.2,
-    device: "desktop-1440",
-    inputMode: "pointer",
-    weight: 0.3,
-  },
-  {
-    role: "Cautious Ops Lead",
-    domainLiteracy: 0.8,
-    patience: 14,
-    riskAversion: 0.7,
-    readingDepth: 0.7,
-    priorFamiliarity: 0.5,
-    device: "laptop-1280",
-    inputMode: "pointer",
-    weight: 0.25,
-  },
-  {
-    role: "Non-technical Marketer",
-    domainLiteracy: 0.3,
-    patience: 8,
-    riskAversion: 0.5,
-    readingDepth: 0.4,
-    priorFamiliarity: 0.1,
-    device: "desktop-1440",
-    inputMode: "pointer",
-    weight: 0.25,
-  },
-  {
-    role: "Jargon-Fluent Engineer",
-    domainLiteracy: 0.95,
-    patience: 12,
-    riskAversion: 0.4,
-    readingDepth: 0.6,
-    priorFamiliarity: 0.8,
-    device: "laptop-1280",
-    inputMode: "keyboard-only",
-    weight: 0.2,
-  },
-];
 
 const app = Fastify({ logger: true });
 
@@ -171,21 +87,48 @@ app.get<{ Params: { id: string } }>("/runs/:id", async (request, reply) => {
   };
 });
 
-// Reads the real graph. `Run.graph` is a TEXT column holding a serialised
-// StateGraph (TRD §8 D7), so a run whose crawl stage hasn't persisted yet
-// answers 200 with an empty graph of the same shape — never a stub, and
-// never a 500 the Atlas has to special-case.
+/**
+ * AT-02 — `AtlasNode[]` with metrics joined (TRD §5.9, §6; CLAUDE.md §6.4).
+ *
+ * "If this endpoint returns nodes without metrics, the visual layer is a lie."
+ * It used to return the raw graph blob and nothing else, so every visual
+ * property downstream had to invent its own friction — which is exactly the
+ * hardcoded-constant failure §6.4 forbids.
+ *
+ * `metrics` is `null`, never a zero-filled object, when Chorus has not run or
+ * did not reach this state. The UI renders an em dash and badges it Predicted;
+ * a zero here would be indistinguishable from a genuinely calm screen.
+ *
+ * Edges ride alongside the nodes array rather than in a second request: the
+ * Atlas cannot lay out a graph without them, and Backend Schema §8's Atlas hot
+ * path is one `findUnique` selecting the whole blob anyway.
+ */
 app.get<{ Params: { id: string } }>("/runs/:id/graph", async (request, reply) => {
   const run = await prisma.run.findUnique({
     where: { id: request.params.id },
-    select: { graph: true },
+    // Backend Schema §8 "Atlas hot path" — one query, no blob parsing beyond
+    // the two TEXT columns it actually needs.
+    select: { graph: true, metrics: true, truncated: true },
   });
   if (!run) {
     return reply.status(404).send({ error: "run not found" });
   }
 
-  const emptyGraph: StateGraph = { nodes: {}, edges: [] };
-  return run.graph ? (JSON.parse(run.graph) as StateGraph) : emptyGraph;
+  // A run whose crawl has not persisted yet answers 200 with an empty graph of
+  // the same shape — never a stub, never a 500 the Atlas has to special-case.
+  const graph: StateGraph = run.graph
+    ? (JSON.parse(run.graph) as StateGraph)
+    : { nodes: {}, edges: [] };
+  const metricsByState: Record<string, StateMetrics> = run.metrics
+    ? (JSON.parse(run.metrics) as Record<string, StateMetrics>)
+    : {};
+
+  const nodes: AtlasNode[] = Object.values(graph.nodes).map((state) => ({
+    ...state,
+    metrics: metricsByState[state.id] ?? null,
+  }));
+
+  return { nodes, edges: graph.edges, truncated: run.truncated };
 });
 
 // Reads the real Finding rows for this run, ordered by `rank` (the stable

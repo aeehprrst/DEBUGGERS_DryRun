@@ -4,6 +4,7 @@ import {
   DeviceType,
   FindingSignature,
   InputMode,
+  PersonaLocale,
   Provenance,
   StepStatus,
 } from "./enums.js";
@@ -101,15 +102,36 @@ export type AllowActions = z.infer<typeof AllowActionsSchema>;
 
 // ---------- Personas & tasks ----------
 
+// PS-01 / TRD §5.1 — patience was a bare number, which conflated two different
+// budgets: how many things a persona will try, and how long they will stay.
+// They are enforced differently (a step cap versus a clock) so they are stored
+// separately (CLAUDE.md §6.8 — patience is a cap, never a prompt).
+export const PatienceSchema = z.object({
+  maxSteps: z.number().int().positive(),
+  maxMs: z.number().int().positive(),
+});
+export type Patience = z.infer<typeof PatienceSchema>;
+
+// PS-01 / TRD §5.1 — the full ten-trait vector.
+//
+// `role` stays a free string rather than becoming a closed PersonaRole enum:
+// TRD §5.4 gives it exactly one job, "task/goal selection", and task selection
+// is PS-04/CH-02, both unbuilt. Closing the enum now would fix a vocabulary
+// against a consumer that does not exist yet.
 export const PersonaTraitVectorSchema = z.object({
+  /** Stable id, e.g. "screen-reader-user". Keys memoisation and segments. */
+  archetype: z.string(),
+  /** Display name, e.g. "Screen-Reader User". */
+  label: z.string(),
   role: z.string(),
   domainLiteracy: z.number().min(0).max(1),
-  patience: z.number(),
+  patience: PatienceSchema,
   riskAversion: z.number().min(0).max(1),
   readingDepth: z.number().min(0).max(1),
   priorFamiliarity: z.number().min(0).max(1),
   device: DeviceType,
   inputMode: InputMode,
+  locale: PersonaLocale,
   weight: z.number(),
 });
 export type PersonaTraitVector = z.infer<typeof PersonaTraitVectorSchema>;
@@ -146,6 +168,17 @@ export const StateMetricsSchema = z.object({
   provenance: Provenance,
 });
 export type StateMetrics = z.infer<typeof StateMetricsSchema>;
+
+// AT-02 / TRD §5.1 — "The Atlas contract — this type existing is what stops the
+// map being cosmetic." `GET /runs/:id/graph` serves these, and `metrics` is
+// nullable rather than optional on purpose: an explicit null on the wire says
+// "Chorus produced nothing for this state", which the UI must render as an em
+// dash badged Predicted. An absent key would let a consumer quietly read it as
+// zero (CLAUDE.md §6.4, §6.5).
+export const AtlasNodeSchema = AppStateSchema.extend({
+  metrics: StateMetricsSchema.nullable(),
+});
+export type AtlasNode = z.infer<typeof AtlasNodeSchema>;
 
 // ---------- Findings ----------
 

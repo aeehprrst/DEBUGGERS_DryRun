@@ -43,11 +43,11 @@ export default function Home() {
               value={url}
               onChange={(event) => setUrl(event.target.value)}
               placeholder="https://staging.yourapp.com"
-              className="h-12 flex-1 rounded-md border border-rule bg-chart-abyss px-4 font-mono text-sm text-ink-0 placeholder:text-ink-2 outline-none focus:border-marker focus:ring-3 focus:ring-marker/20"
+              className="h-12 flex-1 rounded-md border border-rule bg-abyss px-4 font-mono text-sm text-ink-0 placeholder:text-ink-2 outline-none focus:border-marker focus:ring-3 focus:ring-marker/20"
             />
             <button
               type="submit"
-              className="h-12 shrink-0 rounded-md bg-marker px-5 text-sm font-medium text-chart-deep transition hover:brightness-110 active:scale-[0.98]"
+              className="h-12 shrink-0 rounded-md bg-marker px-5 text-sm font-medium text-deep transition hover:brightness-110 active:scale-[0.98]"
             >
               Launch Dry Run →
             </button>

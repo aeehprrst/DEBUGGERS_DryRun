@@ -251,6 +251,72 @@ export async function computeStaticSignals(
   const primaryCta = nodes.find((n) => n.role === "button");
   const belowFoldPrimaryCta = primaryCta ? primaryCta.box.y > viewport.height : false;
 
+  // CH-03 — `belowFoldPrimaryCta` is a single boolean about one control, which
+  // is enough to raise a finding but not enough to model a walk: the simulation
+  // needs to know *which* edges start below the fold so it can discount those
+  // specific affordances. Same measurement, per control.
+  const belowFoldInteractives = nodes
+    .filter(
+      (n) =>
+        interactiveRoles.has(n.role) &&
+        !(n.box.width === 0 && n.box.height === 0) &&
+        n.box.y >= viewport.height,
+    )
+    .map((n) => n.name);
+
+  // CH-03 / TRD §5.4 — "Edges not reachable in tab order get affordance × 0.5."
+  //
+  // Measured, not guessed: the DOM is asked which elements are focusable, and
+  // those boxes are matched back to accessibility-tree nodes. Matching on
+  // geometry rather than recomputing accessible names in the page — the
+  // accname algorithm is subtle and we already have the browser's answer for
+  // every node; reimplementing it here would be a second, worse copy.
+  const tabbableBoxes = await page
+    .evaluate(() => {
+      // Inline helpers only — see the keepNames/`__name` note in errorTextSignals.
+      const selector =
+        "a[href], button, input, select, textarea, summary, [tabindex], [contenteditable=true]";
+      const out: { x: number; y: number; width: number; height: number }[] = [];
+      for (const el of Array.from(document.querySelectorAll(selector))) {
+        const tabindex = el.getAttribute("tabindex");
+        if (tabindex !== null && Number(tabindex) < 0) continue;
+        if ((el as HTMLButtonElement).disabled) continue;
+        if (el.getAttribute("aria-hidden") === "true") continue;
+        const cs = getComputedStyle(el);
+        if (cs.visibility === "hidden" || cs.display === "none") continue;
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0) continue;
+        out.push({
+          x: r.x + window.scrollX,
+          y: r.y + window.scrollY,
+          width: r.width,
+          height: r.height,
+        });
+      }
+      return out;
+    })
+    .catch(() => null);
+
+  // null, not [] — "the browser could not tell us" and "nothing is focusable"
+  // are different facts, and the walk treats an absent list as unknown rather
+  // than as a screen where every control fails the keyboard test (§6.5).
+  const tabbableNames =
+    tabbableBoxes === null
+      ? null
+      : nodes
+          .filter(
+            (n) =>
+              interactiveRoles.has(n.role) &&
+              tabbableBoxes.some(
+                (b) =>
+                  Math.abs(b.x - n.box.x) <= 1 &&
+                  Math.abs(b.y - n.box.y) <= 1 &&
+                  Math.abs(b.width - n.box.width) <= 1 &&
+                  Math.abs(b.height - n.box.height) <= 1,
+              ),
+          )
+          .map((n) => n.name);
+
   const contrast = primaryCta ? await primaryCtaContrast(page, primaryCta) : null;
 
   const cta = await competingCtas(page, nodes);
@@ -265,6 +331,8 @@ export async function computeStaticSignals(
   return {
     interactiveCount,
     belowFoldPrimaryCta,
+    belowFoldInteractives,
+    tabbableNames,
     offscreenInteractives,
     primaryCtaContrastRatio: contrast?.ratio ?? null,
     primaryCtaLowContrast: contrast?.low ?? false,

@@ -7,6 +7,8 @@
     "dev:engine": "pnpm --filter engine dev",
     "dev:web": "pnpm --filter interface dev",
     "build": "pnpm --filter @dry-run/core build && pnpm --filter @dry-run/usher-rt build && pnpm --filter interface build",
+    "demo": "pnpm --filter engine exec tsx src/eval/harness.ts --replay meridian-v1",
+    "demo:live": "pnpm --filter engine exec tsx src/eval/harness.ts",
     "test": "pnpm --filter @dry-run/core test",
     "db:push": "pnpm --filter engine exec prisma db push",
     "db:seed": "pnpm --filter engine exec prisma db seed",
