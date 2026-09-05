@@ -5,7 +5,6 @@ import {
   ERROR_TEXT_PATTERN,
   WCAG_AA_NORMAL_TEXT,
   isCtaVerb,
-  jargonScoreForNames,
 } from "@dry-run/core";
 
 function relativeLuminance([r, g, b]: [number, number, number]): number {
@@ -112,15 +111,17 @@ async function competingCtas(
 
 /**
  * CR-12 · TRD §5.2.4 — "`errorTextContrast` (any node with role `alert` or a
- * name matching /invalid|error|must|required/)" plus `hasAriaLive`. Blocks D3.
+ * name matching /invalid|error|must|required/)" plus `hasAriaLive`.
  *
- * Also reports whether the error text reaches the accessibility tree at all.
- * That is the stronger Observed fact: a 1.9:1 contrast ratio is bad for a
- * sighted user, but text that never enters the a11y tree and sits under no
- * live region simply *does not exist* for a screen-reader persona — the error
- * is not hard to read, it is unannounced.
+ * This is the passive scan: it reports whatever error-shaped text happens to be
+ * on the screen as the crawler found it. On a crawl that submits valid input it
+ * finds nothing, which is why it never produced a single measurement on
+ * Meridian — the error was never on screen to be measured. CR-14's probe is
+ * what provokes the error and takes the measurement that classifies D3; this
+ * function is kept for the case where a target renders an error unprompted, and
+ * it no longer admits a finding on its own (see the note at its return).
  */
-async function errorTextSignals(page: Page, nodes: A11yNode[]) {
+async function errorTextSignals(page: Page) {
   const found = await page
     .evaluate((source) => {
       // No named inner functions in here. esbuild's keepNames wraps every
@@ -182,15 +183,22 @@ async function errorTextSignals(page: Page, nodes: A11yNode[]) {
   const bg = found.bg ? parseRgb(found.bg) : null;
   const ratio = fg && bg ? Math.round(contrastRatio(fg, bg) * 100) / 100 : null;
 
-  // Does that same text reach the accessibility tree? Compared on the
-  // *accessible name*, which is what a screen reader would announce.
-  const needle = found.text.toLowerCase().slice(0, 40);
-  const inTree = nodes.some((n) => n.name.toLowerCase().includes(needle));
-
+  // `errorTextInA11yTree` is deliberately null here, not a boolean. This
+  // function has no view of the accessibility tree it could answer against:
+  // parseAriaSnapshot keeps a line only if it carries a `ref`, so a paragraph's
+  // text payload is dropped, and matching on accessible names would report
+  // every plain-paragraph error as absent from the tree. That is a far stronger
+  // claim than the evidence supports. CR-14's probe answers the question
+  // properly, against the raw snapshot plus an aria-hidden check.
+  //
+  // This scan also no longer admits a finding on its own: `silent-validation`
+  // now requires `errorTextSource`, which only the probe sets. That is
+  // intentional — ERROR_TEXT_PATTERN is a weak signal, and "All fields are
+  // required" rendered in grey is a form hint, not a validation failure.
   return {
     errorTextContrast: ratio,
     errorTextLowContrast: ratio !== null && ratio < WCAG_AA_NORMAL_TEXT,
-    errorTextInA11yTree: inTree,
+    errorTextInA11yTree: null,
     hasAriaLive: found.hasAriaLive,
   };
 }
@@ -204,14 +212,40 @@ export async function computeStaticSignals(
   const interactiveRoles = new Set(["button", "link", "textbox", "searchbox", "checkbox", "radio", "combobox"]);
   const interactiveCount = nodes.filter((n) => interactiveRoles.has(n.role)).length;
 
-  const offscreenControls = nodes
-    .filter(
-      (n) =>
-        interactiveRoles.has(n.role) &&
-        (n.box.x + n.box.width <= 0 ||
-          n.box.x >= viewport.width ||
-          n.box.y + n.box.height <= 0),
+  // A control the page can be scrolled sideways to reach is not offscreen, it
+  // is just off-view — so horizontal overflow only counts when the document
+  // cannot scroll to it at all.
+  const canScrollHorizontally = await page
+    .evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
     )
+    .catch(() => false);
+
+  // Offscreen means "cannot be reached", which is not the same as "does not
+  // start inside the viewport". The old rule required a control to begin past
+  // the edge (`box.x >= viewport.width`), so a control straddling the boundary
+  // counted as on-screen no matter how little of it was reachable — Meridian's
+  // modal close button sits at x=386..414 in a 390px viewport, 4px of 28
+  // visible, and was missed entirely.
+  //
+  // The rule is the control's *centre*: if the midpoint of a control lies
+  // outside the viewport, it cannot be reliably pointed at or tapped. That is
+  // a geometric statement, not a tunable fraction — it introduces no threshold.
+  const offscreenInteractives = nodes
+    .filter((n) => {
+      if (!interactiveRoles.has(n.role)) return false;
+      // A zero-size box is an unrendered element, a different problem entirely.
+      if (n.box.width === 0 && n.box.height === 0) return false;
+
+      // Above the top of the document: scrolling down cannot bring it back.
+      if (n.box.y + n.box.height <= 0) return true;
+
+      if (canScrollHorizontally) return false;
+      const centreX = n.box.x + n.box.width / 2;
+      return centreX < 0 || centreX > viewport.width;
+    })
     .map((n) => n.name);
 
   const primaryCta = nodes.find((n) => n.role === "button");
@@ -220,22 +254,22 @@ export async function computeStaticSignals(
   const contrast = primaryCta ? await primaryCtaContrast(page, primaryCta) : null;
 
   const cta = await competingCtas(page, nodes);
-  const errorText = await errorTextSignals(page, nodes);
+  const errorText = await errorTextSignals(page);
 
-  // TRD §5.2.4 — "jargonScore (fraction of accessible names flagged technical
-  // against a declared word list)". Computed over accessible names because a
-  // name is what a persona has to act on and what a screen reader announces.
-  const jargonScore = jargonScoreForNames(nodes.map((n) => n.name));
+  // `jargonScore` is deliberately NOT computed here. Its product-vocabulary
+  // exclusion needs to know which words recur across *other* states, which no
+  // single-state measurement can see, so the cartographer derives it in one
+  // post-crawl pass (annotateJargonScores) and writes it at state level. It is
+  // viewport-independent, so it does not belong in a per-viewport record.
 
   return {
     interactiveCount,
     belowFoldPrimaryCta,
-    offscreenControls,
+    offscreenInteractives,
     primaryCtaContrastRatio: contrast?.ratio ?? null,
     primaryCtaLowContrast: contrast?.low ?? false,
     competingCtas: cta.competing,
     competingCtaNames: cta.names,
-    jargonScore,
     ...errorText,
     // `deadEndControl` cannot be measured here: it is a property of a state's
     // out-edges, and at the moment a state is first discovered none have been
@@ -246,5 +280,235 @@ export async function computeStaticSignals(
     // The ninth signal, `medianActionLatencyMs`, is still missing: nothing
     // records per-action latency yet (the same gap that makes the
     // `slow-response` signature unreachable). Absent rather than proxied.
+  };
+}
+
+// ---------------------------------------------------------------------------
+// CR-14 · the validation probe's measurement half.
+//
+// `errorTextSignals` above scans a screen as the crawler found it, and on a
+// well-behaved crawl that screen has no error on it — which is why every state
+// in a Meridian run reported `errorTextContrast: null`. CR-07 seeds a *valid*
+// key, so the validation error never renders and D3 is unobservable.
+//
+// This pair is what the probe uses instead: capture the visible text before a
+// deliberately-invalid submit, capture it after, and the difference IS the
+// error text by construction. That holds for any phrasing in any language,
+// which a word list never can.
+// ---------------------------------------------------------------------------
+
+/**
+ * Every visible leaf's trimmed text, in document order. Leaves only: an
+ * ancestor's textContent is the concatenation of its children's, so counting
+ * ancestors would report a whole card as "new" the moment one line inside it
+ * changed.
+ */
+export async function visibleTextSnapshot(page: Page): Promise<string[]> {
+  return page
+    .evaluate(() => {
+      // Inline helpers only — see the note in errorTextSignals about esbuild's
+      // keepNames and `__name` not existing in the page.
+      const out: string[] = [];
+      for (const el of Array.from(document.querySelectorAll("body *"))) {
+        if (el.children.length !== 0) continue;
+        const text = (el.textContent ?? "").trim();
+        if (!text) continue;
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        if (r.width <= 0 || r.height <= 0) continue;
+        if (cs.visibility === "hidden" || cs.display === "none") continue;
+        out.push(text);
+      }
+      return out;
+    })
+    .catch(() => [] as string[]);
+}
+
+export type ErrorProbeSignals = {
+  /** How the error text was identified. null = none found. */
+  errorTextSource: "delta" | "aria-describedby" | "pattern" | null;
+  errorText: string | null;
+  errorTextContrast: number | null;
+  errorTextLowContrast: boolean;
+  /** Does the text reach the accessibility tree at all? null = no error found. */
+  errorTextInA11yTree: boolean | null;
+  errorRoleAlert: boolean;
+  errorInLiveRegion: boolean;
+  hasAriaLive: boolean;
+  errorAriaInvalid: boolean;
+  errorAriaDescribedby: boolean;
+  /**
+   * Would a screen reader ever say this out loud? True only through a route
+   * that actually announces: role="alert", an aria-live region, or the standard
+   * aria-invalid + aria-describedby pairing (read when focus returns to the
+   * offending field). Sighted-only text in a plain paragraph is not announced.
+   */
+  errorAnnounced: boolean | null;
+};
+
+const NO_ERROR_FOUND: ErrorProbeSignals = {
+  errorTextSource: null,
+  errorText: null,
+  errorTextContrast: null,
+  errorTextLowContrast: false,
+  errorTextInA11yTree: null,
+  errorRoleAlert: false,
+  errorInLiveRegion: false,
+  hasAriaLive: false,
+  errorAriaInvalid: false,
+  errorAriaDescribedby: false,
+  errorAnnounced: null,
+};
+
+/**
+ * Identifies and measures the error text on a screen that has just rejected a
+ * submission.
+ *
+ * Priority, per CR-14: the text delta is the evidence; `aria-invalid` +
+ * `aria-describedby` corroborate it and break ties when several strings
+ * appeared; ERROR_TEXT_PATTERN is a weak last resort used only when the delta
+ * is empty (an app that pre-renders its error hidden and merely unhides it adds
+ * no new text node, so an empty delta does not prove there was no error).
+ *
+ * @param newTexts  visible strings present after the submit and not before
+ * @param rawSnapshot  the raw ariaSnapshot taken after the submit, used to
+ *   answer "is this text in the accessibility tree" against the tree itself
+ *   rather than against our parsed nodes — parseAriaSnapshot keeps only lines
+ *   carrying a `ref`, so a paragraph's text payload is dropped, and asking it
+ *   would report every plain-paragraph error as absent from the tree. That is a
+ *   far stronger claim than the evidence supports.
+ */
+export async function probeErrorSignals(
+  page: Page,
+  newTexts: string[],
+  rawSnapshot: string,
+): Promise<ErrorProbeSignals> {
+  const found = await page
+    .evaluate(
+      ({ texts, patternSource }) => {
+        const pattern = new RegExp(patternSource, "i");
+
+        const leaves = Array.from(document.querySelectorAll("body *")).filter((el) => {
+          if (el.children.length !== 0) return false;
+          if ((el.textContent ?? "").trim().length === 0) return false;
+          const r = el.getBoundingClientRect();
+          const cs = getComputedStyle(el);
+          return (
+            r.width > 0 && r.height > 0 && cs.visibility !== "hidden" && cs.display !== "none"
+          );
+        });
+
+        const fields = Array.from(document.querySelectorAll("input, textarea, select"));
+        const invalidField =
+          fields.find((f) => f.getAttribute("aria-invalid") === "true") ?? null;
+        const describedIds = (invalidField?.getAttribute("aria-describedby") ?? "")
+          .split(/\s+/)
+          .filter((id) => id.length > 0);
+
+        const isNew = new Set(texts);
+        const deltaEls = leaves.filter((el) => isNew.has((el.textContent ?? "").trim()));
+
+        let el: Element | null = null;
+        let source: string | null = null;
+        const described =
+          deltaEls.find((e) => describedIds.includes(e.id)) ??
+          leaves.find((e) => describedIds.includes(e.id));
+        if (described) {
+          el = described;
+          source = "aria-describedby";
+        } else if (deltaEls.length > 0) {
+          el = deltaEls[0];
+          source = "delta";
+        } else {
+          const byPattern = leaves.find(
+            (c) =>
+              c.getAttribute("role") === "alert" ||
+              pattern.test((c.textContent ?? "").trim()),
+          );
+          if (byPattern) {
+            el = byPattern;
+            source = "pattern";
+          }
+        }
+
+        const hasAriaLive =
+          document.querySelector("[aria-live], [role=alert], [role=status]") !== null;
+        const errorAriaInvalid = invalidField !== null;
+
+        if (!el) {
+          return {
+            text: null as string | null,
+            source: null as string | null,
+            fg: null as string | null,
+            bg: null as string | null,
+            hasAriaLive,
+            errorAriaInvalid,
+            errorAriaDescribedby: false,
+            roleAlert: false,
+            inLiveRegion: false,
+            ariaHidden: false,
+          };
+        }
+
+        let bgEl: Element | null = el;
+        let bg = "";
+        for (let i = 0; i < 6 && bgEl; i++) {
+          bg = getComputedStyle(bgEl).backgroundColor;
+          if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") break;
+          bgEl = bgEl.parentElement;
+        }
+
+        return {
+          text: (el.textContent ?? "").trim(),
+          source,
+          fg: getComputedStyle(el).color,
+          bg: bg || "rgb(255, 255, 255)",
+          hasAriaLive,
+          errorAriaInvalid,
+          errorAriaDescribedby: describedIds.includes(el.id),
+          roleAlert:
+            el.getAttribute("role") === "alert" || el.closest("[role=alert]") !== null,
+          inLiveRegion: el.closest("[aria-live], [role=alert], [role=status]") !== null,
+          ariaHidden: el.closest('[aria-hidden="true"]') !== null,
+        };
+      },
+      { texts: newTexts, patternSource: ERROR_TEXT_PATTERN.source },
+    )
+    .catch(() => null);
+
+  if (!found || !found.text || !found.source) {
+    return { ...NO_ERROR_FOUND, hasAriaLive: found?.hasAriaLive ?? false };
+  }
+
+  const fg = found.fg ? parseRgb(found.fg) : null;
+  const bg = found.bg ? parseRgb(found.bg) : null;
+  const ratio = fg && bg ? Math.round(contrastRatio(fg, bg) * 100) / 100 : null;
+
+  // Whitespace-normalised on both sides: the snapshot renders a text payload on
+  // one line, the DOM may hold it across several.
+  //
+  // The aria-hidden term is not redundant. Playwright's `mode: "ai"` snapshot
+  // renders an `aria-hidden="true"` subtree like any other — verified against a
+  // live page — so the snapshot alone would report text a screen reader can
+  // never reach as present in the tree. That is the one claim in this finding
+  // that must not be overstated, so it is checked against the DOM as well.
+  const flat = (s: string) => s.replace(/\s+/g, " ").trim();
+  const inTree = !found.ariaHidden && flat(rawSnapshot).includes(flat(found.text));
+
+  return {
+    errorTextSource: found.source as ErrorProbeSignals["errorTextSource"],
+    errorText: found.text,
+    errorTextContrast: ratio,
+    errorTextLowContrast: ratio !== null && ratio < WCAG_AA_NORMAL_TEXT,
+    errorTextInA11yTree: inTree,
+    errorRoleAlert: found.roleAlert,
+    errorInLiveRegion: found.inLiveRegion,
+    hasAriaLive: found.hasAriaLive,
+    errorAriaInvalid: found.errorAriaInvalid,
+    errorAriaDescribedby: found.errorAriaDescribedby,
+    errorAnnounced:
+      found.roleAlert ||
+      found.inLiveRegion ||
+      (found.errorAriaInvalid && found.errorAriaDescribedby),
   };
 }

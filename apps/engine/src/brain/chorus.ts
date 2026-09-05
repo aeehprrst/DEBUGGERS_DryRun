@@ -87,7 +87,10 @@ export function jargonLoad(state: AppState): number {
     return Math.min(1, Math.max(0, cached));
   }
 
-  return jargonScoreForNames(state.a11yTree.map((n) => n.name));
+  // null means "too few accessible names to measure" (CR-12). For the walk
+  // model that is not a jargon burden, so it reads as zero load rather than
+  // becoming an unmeasured state the persona cannot be simulated on.
+  return jargonScoreForNames(state.a11yTree.map((n) => n.name)) ?? 0;
 }
 
 const CTA_VERB_PATTERN =
@@ -95,7 +98,7 @@ const CTA_VERB_PATTERN =
 
 function affordance(edge: ActionEdge, fromState: AppState): number {
   const offscreen = new Set(
-    ((fromState.staticSignals as Record<string, unknown> | undefined)?.offscreenControls as
+    ((fromState.staticSignals as Record<string, unknown> | undefined)?.offscreenInteractives as
       | string[]
       | undefined) ?? [],
   );

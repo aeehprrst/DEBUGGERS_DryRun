@@ -196,7 +196,7 @@ important new number in v2.
 Raw metrics cluster into named findings by signature. Target output quality:
 
 > **Invisible validation error** — 41% of personas re-submitted the same API-key field 3+ times.
-> Error text exists in the DOM at contrast 1.9:1 with no `aria-live`. Screen: *Connect Source*.
+> Error text exists in the DOM at contrast 1.11:1with no `aria-live`. Screen: *Connect Source*.
 > Friction 78 · Fix Value 0.61 · **Observed** (browser-verified contrast).
 
 **Eight signatures and their detection rules:**

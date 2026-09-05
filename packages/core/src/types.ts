@@ -41,6 +41,18 @@ export const A11yNodeSchema = z.object({
 });
 export type A11yNode = z.infer<typeof A11yNodeSchema>;
 
+export const StaticSignalsSchema = z.record(z.string(), z.any());
+export type StaticSignals = z.infer<typeof StaticSignalsSchema>;
+
+// CR-09 / TRD §5.2.5 — the viewports the crawler measures at, declared once so
+// the desktop pass, the mobile pass and the persona `device` trait cannot drift
+// apart. Keys match the DeviceType enum.
+export const CRAWL_VIEWPORTS = {
+  "laptop-1280": { width: 1280, height: 720 },
+  "mobile-390": { width: 390, height: 844 },
+} as const;
+export type CrawlViewport = keyof typeof CRAWL_VIEWPORTS;
+
 export const AppStateSchema = z.object({
   id: z.string(),
   fingerprint: z.string(),
@@ -49,6 +61,11 @@ export const AppStateSchema = z.object({
   screenshotPath: z.string(),
   a11yTree: z.array(A11yNodeSchema),
   staticSignals: z.record(z.string(), z.any()),
+  // CR-09 / TRD §5.2.5 — "Store `staticSignals` per viewport". Optional because
+  // the mobile pass can legitimately fail to re-reach a state; an absent entry
+  // means "not measured at this width", which must stay distinguishable from
+  // "measured and found nothing".
+  viewports: z.record(z.string(), StaticSignalsSchema).optional(),
 });
 export type AppState = z.infer<typeof AppStateSchema>;
 

@@ -16,23 +16,56 @@ export const JARGON_WORDS: ReadonlySet<string> = new Set([
   "middleware", "authentication", "authorization", "encryption",
   "certificate", "dns", "cname", "callback", "async", "queue", "cache",
   "index", "migration", "regex", "json", "xml", "rest", "graphql",
-  "latency", "throughput", "workspace", "envelope",
+  "latency", "throughput", "envelope",
+  // "workspace" was here and has been removed. It is ordinary English that
+  // happens to be common in SaaS, not technical vocabulary a non-specialist
+  // would stumble on — a list error, independent of any one target app.
 ]);
+
+/**
+ * A state carrying fewer accessible names than this is not measured at all.
+ * A 1-of-1 or 2-of-3 ratio is not a measurement, it is a rounding artifact:
+ * one flagged word on a sparse screen reads as 100% jargon. Returning null
+ * says "not enough to measure" rather than fabricating a confident number
+ * (CLAUDE.md §6.5).
+ */
+export const MIN_NAMES_FOR_JARGON_SCORE = 4;
+
+/**
+ * A word appearing in the headings or navigation of at least this many distinct
+ * states is that product's own vocabulary, not unexplained jargon. Every app
+ * repeats its core nouns in its own chrome; a term the product itself teaches
+ * on every screen is not a term the product failed to explain.
+ */
+export const PRODUCT_VOCABULARY_MIN_STATES = 3;
+
+export function wordsIn(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 0);
+}
 
 /**
  * Fraction of the supplied accessible names that contain at least one flagged
  * word. Names, not raw page text: a screen reader announces names, and a name
  * is what a persona has to act on.
+ *
+ * Returns null when there are too few names to measure — see
+ * MIN_NAMES_FOR_JARGON_SCORE. `productVocabulary` holds words the caller has
+ * determined the product teaches itself; they are excluded from the count.
  */
-export function jargonScoreForNames(names: readonly string[]): number {
+export function jargonScoreForNames(
+  names: readonly string[],
+  productVocabulary: ReadonlySet<string> = new Set(),
+): number | null {
   const usable = names.filter((n) => n.trim().length > 0);
-  if (usable.length === 0) return 0;
+  if (usable.length < MIN_NAMES_FOR_JARGON_SCORE) return null;
 
   const flagged = usable.filter((name) =>
-    name
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .some((word) => JARGON_WORDS.has(word)),
+    wordsIn(name).some(
+      (word) => JARGON_WORDS.has(word) && !productVocabulary.has(word),
+    ),
   ).length;
 
   return flagged / usable.length;

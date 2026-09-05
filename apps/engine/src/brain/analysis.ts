@@ -44,17 +44,32 @@ type Classification = {
 type StaticSignals = {
   interactiveCount?: number;
   belowFoldPrimaryCta?: boolean;
-  offscreenControls?: string[];
+  offscreenInteractives?: string[];
   primaryCtaContrastRatio?: number | null;
   primaryCtaLowContrast?: boolean;
   // CR-12, added with the four missing signals.
   competingCtas?: boolean;
   competingCtaNames?: string[];
-  jargonScore?: number;
+  // null = too few accessible names to measure (CR-12), never 0.
+  jargonScore?: number | null;
+  jargonUnmeasuredReason?: string | null;
+  jargonProductVocabulary?: string[];
   errorTextContrast?: number | null;
   errorTextLowContrast?: boolean;
   errorTextInA11yTree?: boolean | null;
   hasAriaLive?: boolean;
+  // CR-14, written by the validation probe.
+  errorTextSource?: "delta" | "aria-describedby" | "pattern" | null;
+  errorText?: string | null;
+  errorRoleAlert?: boolean;
+  errorInLiveRegion?: boolean;
+  errorAriaInvalid?: boolean;
+  errorAriaDescribedby?: boolean;
+  errorAnnounced?: boolean | null;
+  validationProbed?: boolean;
+  validationRejected?: boolean | null;
+  validationRecovers?: boolean;
+  validationProbeSkippedReason?: string | null;
   deadEndControl?: boolean;
   deadEndControlNames?: string[];
 };
@@ -113,17 +128,31 @@ function classifyObserved(state: AppState): Classification[] {
     });
   }
 
-  // PRD §6.5 row 5: `offscreen-control` ← offscreenInteractives.length > 0.
-  // The mobile-vs-desktop dropout comparison the rule also asks for needs
-  // CR-09's second viewport pass, which does not exist yet — so this fires only
-  // on controls already offscreen at 1280, and D5's 390px-only breakage stays
-  // invisible. Named here rather than approximated with a proxy.
-  const offscreen = signals.offscreenControls ?? [];
-  if (offscreen.length > 0) {
+  // PRD §6.5 row 5: `offscreen-control` ← offscreenInteractives.length > 0,
+  // read from the CR-09 mobile pass. This is D5: the control is perfectly
+  // reachable at 1280 and off the edge of the screen at 390, so measuring only
+  // the desktop width can never see it. The rule's "mobile dropout ≫ desktop
+  // dropout" conjunct is exactly what the two-viewport comparison below
+  // expresses structurally — offscreen on mobile, on-screen on desktop.
+  const mobile = (state.viewports?.["mobile-390"] ?? {}) as StaticSignals;
+  const laptop = (state.viewports?.["laptop-1280"] ?? signals) as StaticSignals;
+  const offscreenMobile = mobile.offscreenInteractives ?? [];
+  const offscreenLaptop = laptop.offscreenInteractives ?? [];
+  if (offscreenMobile.length > 0) {
+    const mobileOnly = offscreenMobile.filter((n) => !offscreenLaptop.includes(n));
+    const names = (mobileOnly.length > 0 ? mobileOnly : offscreenMobile)
+      .map((n) => `"${n}"`)
+      .join(", ");
     found.push({
       signature: "offscreen-control",
-      title: "A control is positioned offscreen",
-      explanation: `${offscreen.length} interactive control(s) measured outside the viewport: ${offscreen.join(", ")}.`,
+      title:
+        mobileOnly.length > 0
+          ? "A control is offscreen on mobile but not on desktop"
+          : "A control is positioned offscreen",
+      explanation:
+        mobileOnly.length > 0
+          ? `${names} measured outside the viewport at 390px, and inside it at 1280px. A mobile persona cannot reach a control a desktop persona can.`
+          : `${names} measured outside the viewport at 390px.`,
       provenance: "observed",
     });
   }
@@ -156,8 +185,10 @@ function classifyObserved(state: AppState): Classification[] {
   // PRD §6.5 row 6: `jargon-gate` ← jargonScore > 0.4. The rule's second
   // conjunct correlates dropout against `domainLiteracy`, which needs CH-04's
   // per-segment metrics — unbuilt, so the Observed half stands alone. (D6)
-  const jargonScore = signals.jargonScore ?? 0;
-  if (jargonScore > JARGON_SCORE_HIGH) {
+  // A null score is "not measured", not "measured as zero" — no finding either
+  // way, but the two must not be conflated in the code that reads it.
+  const jargonScore = signals.jargonScore;
+  if (typeof jargonScore === "number" && jargonScore > JARGON_SCORE_HIGH) {
     found.push({
       signature: "jargon-gate",
       title: "Unexplained technical terms gate this screen",
@@ -167,28 +198,43 @@ function classifyObserved(state: AppState): Classification[] {
   }
 
   // PRD §6.5 row 3: `silent-validation` ← lowContrastText ∧ ¬hasAriaLive.
-  // Two independent ways to be silent, and the second is the more damning:
-  // error text absent from the accessibility tree does not exist at all for a
-  // screen-reader persona — it is unannounced, not merely hard to read. (D3)
-  const errorMissingFromTree = signals.errorTextInA11yTree === false;
-  const errorUnannounced = signals.errorTextContrast !== null && signals.hasAriaLive === false;
-  if (errorMissingFromTree || signals.errorTextLowContrast === true) {
+  //
+  // The evidence comes from CR-14's validation probe, which submitted a
+  // deliberately invalid value on this screen and measured what came back. Two
+  // independent ways to be silent — the text is too faint to read, or nothing
+  // ever announces it — and either one alone is the finding. (D3)
+  //
+  // The rule's `loop > 0.3` conjunct is dropped for the same reason as the
+  // other Observed rules: a browser-measured contrast ratio is a fact whether
+  // or not the population happened to loop here.
+  const errorObserved = signals.errorText != null && signals.errorTextSource != null;
+  const errorLowContrast = signals.errorTextLowContrast === true;
+  // "Unannounced" is the absence of every route that would actually speak:
+  // role="alert", an aria-live region, or aria-invalid + aria-describedby.
+  const errorUnannounced = signals.errorAnnounced === false;
+  if (errorObserved && (errorLowContrast || errorUnannounced)) {
     const parts: string[] = [];
-    if (errorMissingFromTree) {
+    if (errorLowContrast) {
       parts.push(
-        "the error text never enters the accessibility tree, so a screen-reader persona is never told the submission failed",
+        `its contrast against the background measures ${signals.errorTextContrast}:1, below the 4.5:1 WCAG AA minimum`,
       );
     }
-    if (signals.errorTextLowContrast === true) {
+    if (errorUnannounced) {
+      // Careful with the claim. On a screen whose error text does reach the
+      // accessibility tree, saying it "does not exist" would be false and
+      // overclaiming: it is there, silently, and only a persona who happens to
+      // re-read the form finds it. Say exactly that. The stronger sentence is
+      // reserved for the case we can actually evidence.
       parts.push(
-        `its contrast measures ${signals.errorTextContrast}:1, below the 4.5:1 WCAG AA minimum`,
+        signals.errorTextInA11yTree === false
+          ? 'it carries no role="alert", sits in no aria-live region, and never reaches the accessibility tree at all, so a screen-reader persona is never told the submission failed'
+          : 'it carries no role="alert" and sits in no aria-live region, so the error is never announced — a screen-reader persona is told nothing when the submission fails, even though the text is present on screen',
       );
     }
-    if (errorUnannounced) parts.push("and no aria-live region announces it");
     found.push({
       signature: "silent-validation",
       title: "Validation fails without telling the user",
-      explanation: `This screen rejects input, but ${parts.join(", ")}.`,
+      explanation: `Submitting an invalid value was rejected here and the screen showed "${signals.errorText}", but ${parts.join("; and ")}. Measured in the browser at ${state.url}.`,
       provenance: "observed",
     });
   }
