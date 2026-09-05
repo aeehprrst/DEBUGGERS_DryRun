@@ -13,6 +13,7 @@ import type {
   AtlasNode,
   SeededValues,
   StateGraph,
+  RunExclusion,
   StateMetrics,
 } from "@dry-run/core";
 import { runAnalysis } from "./brain/analysis.js";
@@ -84,6 +85,15 @@ app.get<{ Params: { id: string } }>("/runs/:id", async (request, reply) => {
     targetUrl: run.targetUrl,
     graph: run.graph ? (JSON.parse(run.graph) as StateGraph) : null,
     findings: findingRows.map(toCoreFinding),
+    // AN-07 — the run-level ExclusionIndex, on the existing run endpoint rather
+    // than a new one. Three distinct states reach the client and must stay
+    // distinguishable: `null` means analysis has not run (or predates AN-07);
+    // an object with `index: null` and an `unavailableReason` means it ran and
+    // no (state, segment) pair was comparable; an object with `index` set is
+    // the headline. A zero is never any of them (PRD §6.4, CLAUDE.md §6.5).
+    exclusion: run.exclusionIndex
+      ? (JSON.parse(run.exclusionIndex) as RunExclusion)
+      : null,
   };
 });
 

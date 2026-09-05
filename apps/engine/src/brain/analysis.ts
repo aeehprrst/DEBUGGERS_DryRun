@@ -1,7 +1,15 @@
+import {
+  affectedSegmentsFor,
+  computeExclusionDeltas,
+  computeExclusionIndex,
+  screenNameFor,
+} from "@dry-run/core";
 import type {
   AppState,
+  ExclusionDelta,
   FindingSignature,
   Provenance,
+  RunExclusion,
   StateGraph,
   StateMetrics,
 } from "@dry-run/core";
@@ -354,6 +362,39 @@ export async function runAnalysis(runId: string): Promise<{ findingCount: number
   const graph: StateGraph = JSON.parse(run.graph);
   const metricsByState: Record<string, StateMetrics> = JSON.parse(run.metrics);
 
+  // AN-07 — ExclusionDelta per (state, segment), then the run-level index.
+  //
+  // Derived from CH-04's per-segment records, which are already in this blob;
+  // no walk is re-run and no metric is recomputed, so this adds output and
+  // touches neither `fixValue` nor the ordering below. The null rule lives in
+  // `computeExclusionDeltas` (@dry-run/core) — a missing operand yields a null
+  // delta, never a zero and never a substitution of the overall population for
+  // an unmeasured baseline.
+  const exclusionByState: Record<string, Record<string, ExclusionDelta>> = {};
+  for (const state of Object.values(graph.nodes)) {
+    const metrics = metricsByState[state.id];
+    if (!metrics) continue;
+    const deltas = computeExclusionDeltas(state.id, metrics.segments);
+    exclusionByState[state.id] = deltas;
+    // Written back into the same blob Chorus produced, so `GET /runs/:id/graph`
+    // serves per-state deltas on every AtlasNode with no new endpoint.
+    metricsByState[state.id] = { ...metrics, exclusion: deltas };
+  }
+
+  const runExclusion: RunExclusion = computeExclusionIndex(
+    Object.values(graph.nodes)
+      .filter((state) => exclusionByState[state.id])
+      .map((state) => ({
+        stateId: state.id,
+        // screenNameFor, not state.title: Meridian titles every screen
+        // "Meridian", so the raw title would make PRD §6.4's headline name
+        // nothing. Finding.stateName keeps the bare title — that column is not
+        // what the Findings view renders, and AN-07 does not change it.
+        stateName: screenNameFor(state),
+        deltas: exclusionByState[state.id],
+      })),
+  );
+
   const findings = Object.values(graph.nodes)
     .flatMap((state) => {
       const metrics = metricsByState[state.id];
@@ -393,7 +434,13 @@ export async function runAnalysis(runId: string): Promise<{ findingCount: number
     provenance: classification.provenance,
     rank: index,
     groundedTraceIds: JSON.stringify([]), // no ScoutTrace cross-referencing yet
-    affectedSegments: JSON.stringify([]), // needs a per-archetype breakdown Chorus doesn't expose yet
+    // AN-06's segments half. Positive non-null deltas on this finding's state,
+    // largest first; segments whose delta could not be computed follow, marked
+    // `unknown` rather than dropped — absent would read as "not affected",
+    // which is the opposite claim (CLAUDE.md §6.5).
+    affectedSegments: JSON.stringify(
+      affectedSegmentsFor(exclusionByState[state.id] ?? {}),
+    ),
     evidence: JSON.stringify({ screenshots: [state.screenshotPath], quotes: [] }),
   }));
 
@@ -409,7 +456,16 @@ export async function runAnalysis(runId: string): Promise<{ findingCount: number
     }
     await tx.run.update({
       where: { id: runId },
-      data: { findingCount: findingsData.length },
+      data: {
+        findingCount: findingsData.length,
+        // AN-07 — the augmented blob (Chorus's metrics plus this stage's
+        // per-state deltas) and the run-level index. `exclusionIndex` is a
+        // nullable column; it is written with an object whose `index` may
+        // itself be null and carry a reason, so "not analysed yet" (NULL
+        // column) stays distinct from "analysed, nothing comparable".
+        metrics: JSON.stringify(metricsByState),
+        exclusionIndex: JSON.stringify(runExclusion),
+      },
     });
   });
 

@@ -204,6 +204,113 @@ export const SegmentStateMetricsSchema = z.object({
 });
 export type SegmentStateMetrics = z.infer<typeof SegmentStateMetricsSchema>;
 
+/**
+ * Why an `ExclusionDelta` could not be computed. PRD §6.4's delta is a
+ * subtraction of two dropout figures, and CH-04 returns `null` rather than a
+ * zero for any segment it saw too few personas from — so either operand can be
+ * missing, and which one it was is the difference between "this segment barely
+ * reached the screen" and "we have no reference to compare anything against".
+ * A consumer must be able to say which; an unexplained em dash is not enough.
+ */
+export const ExclusionUnavailableReason = z.enum([
+  "segment-sample-too-thin",
+  "baseline-sample-too-thin",
+  "both-samples-too-thin",
+  "segment-not-recorded",
+  "baseline-not-recorded",
+]);
+export type ExclusionUnavailableReason = z.infer<typeof ExclusionUnavailableReason>;
+
+/**
+ * AN-07 / PRD §6.4 — `ExclusionDelta(s, g) = Dropout(s | g) − Dropout(s | baseline)`.
+ *
+ * **`delta` is null whenever either operand is null, and that is the point of
+ * this type.** A null baseline does not mean exclusion is zero and does not
+ * mean it is large: it means the question is unanswerable for that state. The
+ * dropout figures and both sample counts are carried either way so the null can
+ * be explained rather than rendered as a bare dash (CLAUDE.md §6.5).
+ *
+ * Always `modeled` (L6): the dropout figures underneath are Chorus output, and
+ * the fact that the graph they walked was measured in a real browser does not
+ * make a simulated ratio Observed.
+ */
+export const ExclusionDeltaSchema = z.object({
+  stateId: z.string(),
+  /** `SegmentId`; a plain string here for the same acyclic reason as below. */
+  segment: z.string(),
+  /** Null iff either dropout is null. Never coerced to 0. */
+  delta: z.number().nullable(),
+  segmentDropout: z.number().nullable(),
+  baselineDropout: z.number().nullable(),
+  /** Sample sizes, recorded even when the delta is null — they explain it. */
+  segmentPersonas: z.number().int().min(0),
+  baselinePersonas: z.number().int().min(0),
+  unavailableReason: ExclusionUnavailableReason.nullable(),
+  /**
+   * True for the baseline segment's own row, whose delta is 0 by definition.
+   * Flagged rather than string-compared so the index cannot accidentally let
+   * the reference win its own comparison (PRD §6.4).
+   */
+  isBaseline: z.boolean(),
+  provenance: Provenance,
+});
+export type ExclusionDelta = z.infer<typeof ExclusionDeltaSchema>;
+
+/** The single (state, segment) pair with the largest non-null delta in a run. */
+export const ExclusionIndexSchema = z.object({
+  stateId: z.string(),
+  /** Human-readable screen name, so the headline reads as PRD §6.4 writes it. */
+  stateName: z.string(),
+  segment: z.string(),
+  segmentLabel: z.string(),
+  delta: z.number(),
+  segmentDropout: z.number(),
+  baselineDropout: z.number(),
+  provenance: Provenance,
+});
+export type ExclusionIndex = z.infer<typeof ExclusionIndexSchema>;
+
+export const ExclusionIndexUnavailableReason = z.enum([
+  "no-states-analysed",
+  "no-comparable-pairs",
+]);
+export type ExclusionIndexUnavailableReason = z.infer<
+  typeof ExclusionIndexUnavailableReason
+>;
+
+/**
+ * The run-level exclusion result. `index` is nullable and a null carries a
+ * reason: a run where every pair was too thin to compare has no worst case, and
+ * emitting a zero or falling back to some arbitrary state would invent the most
+ * important number in v2 (PRD §6.4).
+ */
+export const RunExclusionSchema = z.object({
+  index: ExclusionIndexSchema.nullable(),
+  unavailableReason: ExclusionIndexUnavailableReason.nullable(),
+  /** Non-baseline (state, segment) pairs examined. */
+  pairsConsidered: z.number().int().min(0),
+  /** How many of those yielded a non-null delta. */
+  pairsComparable: z.number().int().min(0),
+  provenance: Provenance,
+});
+export type RunExclusion = z.infer<typeof RunExclusionSchema>;
+
+/**
+ * AN-06's segments half. A segment with a null delta is **unknown**, not
+ * unaffected — the two must never collapse, because "we could not tell" and
+ * "this group was fine" are opposite claims about an accessibility result.
+ */
+export const AffectedSegmentSchema = z.object({
+  segment: z.string(),
+  label: z.string(),
+  delta: z.number().nullable(),
+  segmentDropout: z.number().nullable(),
+  baselineDropout: z.number().nullable(),
+  status: z.enum(["affected", "unknown"]),
+  unavailableReason: ExclusionUnavailableReason.nullable(),
+});
+export type AffectedSegment = z.infer<typeof AffectedSegmentSchema>;
+
 export const StateMetricsSchema = StateMetricsBaseSchema.extend({
   /**
    * CH-04 — the same metrics recomputed over each named segment (`segments.ts`).
@@ -215,6 +322,15 @@ export const StateMetricsSchema = StateMetricsBaseSchema.extend({
    * and absent must stay distinguishable from "computed, and empty".
    */
   segments: z.record(z.string(), SegmentStateMetricsSchema).optional(),
+  /**
+   * AN-07 — this state's `ExclusionDelta` per segment, keyed by `SegmentId`.
+   * Written by Analysis into the same `Run.metrics` blob Chorus produced, so
+   * `GET /runs/:id/graph` serves it on every `AtlasNode` without a new endpoint
+   * and the Atlas inherits per-state deltas when AT-01 lands.
+   *
+   * Optional for the same reason `segments` is: a pre-AN-07 run has no key.
+   */
+  exclusion: z.record(z.string(), ExclusionDeltaSchema).optional(),
 });
 export type StateMetrics = z.infer<typeof StateMetricsSchema>;
 

@@ -67,6 +67,14 @@ model Run {
   chorus       String?                        // ChorusResult
   metrics      String?                        // Record<StateId, StateMetrics>
 
+  // AN-07 / PRD §6.4 — the run-level ExclusionIndex as a RunExclusion JSON
+  // blob. NULLABLE and additive (CLAUDE.md §6.9): a run analysed before AN-07
+  // has NULL here, which must stay distinguishable from a run that was
+  // analysed and found no comparable (state, segment) pair — that case is a
+  // stored object with index: null and a reason. Per-state deltas are not here;
+  // they ride inside the metrics blob above so GET /runs/:id/graph serves them.
+  exclusionIndex String?                       // RunExclusion — packages/core
+
   // ── denormalised counters, for list views without parsing blobs ──
   stateCount       Int     @default(0)
   actionCount      Int     @default(0)

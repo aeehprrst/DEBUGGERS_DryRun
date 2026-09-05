@@ -126,6 +126,16 @@ export const SEGMENTS: readonly Segment[] = [
 ];
 
 /**
+ * PRD §6.4 — the segment every `ExclusionDelta` is measured against.
+ *
+ * Named here, once, so AN-07 never re-derives "which one is the baseline" from
+ * a trait threshold or a string literal of its own. It is the id of the segment
+ * whose sole member is `BASELINE_ARCHETYPE`; `segments.test.ts` pins that
+ * membership, so this constant and the archetype definition cannot drift apart.
+ */
+export const BASELINE_SEGMENT = "confident-desktop" as const satisfies SegmentId;
+
+/**
  * The segments a persona belongs to, in `SEGMENTS` order. Pure, and returns a
  * possibly-empty array — membership is not exhaustive (see
  * `UNSEGMENTED_ARCHETYPES`), so callers must handle a persona in no segment
