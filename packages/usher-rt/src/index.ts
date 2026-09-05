@@ -23,6 +23,11 @@ type TourStep = {
   body: string;
   placement: "top" | "bottom" | "left" | "right" | "center" | string;
   advanceOn?: AdvanceOn;
+  // TR-06 — the pathname this step was compiled against, filled in at the
+  // engine's export boundary. Optional: absent means the route is unknown, and
+  // the runtime then says only that the anchor did not resolve here, never that
+  // the step belongs somewhere it cannot name.
+  route?: string;
 };
 
 type Tour = {
@@ -210,6 +215,16 @@ function teardown() {
   }
 }
 
+// CLAUDE.md §7 — reduced motion is wired here, not treated as polish. The
+// spotlight's only animation is the tween as it travels between steps; under
+// `reduce` it cuts instead. Nothing else about the tour moves.
+function reducedMotion(): boolean {
+  return (
+    typeof matchMedia === "function" &&
+    matchMedia("(prefers-reduced-motion:reduce)").matches
+  );
+}
+
 function ensureOverlay() {
   if (overlay) return;
   overlay = document.createElement("div");
@@ -217,7 +232,8 @@ function ensureOverlay() {
     "position:fixed;inset:0;z-index:2147483000;pointer-events:none;font-family:system-ui,sans-serif";
   spotlight = document.createElement("div");
   spotlight.style.cssText =
-    "position:fixed;border-radius:8px;box-shadow:0 0 0 9999px rgba(7,14,21,.72);transition:all .18s ease;pointer-events:none";
+    "position:fixed;border-radius:8px;box-shadow:0 0 0 9999px rgba(7,14,21,.72);pointer-events:none;transition:" +
+    (reducedMotion() ? "none" : "all .18s ease");
   tooltip = document.createElement("div");
   tooltip.style.cssText =
     "position:fixed;max-width:320px;background:#1A3247;color:#EAE6DF;border:1px solid rgba(234,230,223,.24);border-radius:8px;padding:14px 16px;box-shadow:0 8px 24px rgba(0,0,0,.4);pointer-events:auto";
@@ -283,7 +299,19 @@ function renderStep(
   cleanupTargetListener = null;
 
   const step = tour.steps[index];
-  const target = resolveAnchor(step.anchor);
+
+  // TR-06 — a step compiled against another screen is not resolved at all.
+  //
+  // This is a guard on the ladder, not a change to it. Tier 4 is
+  // landmark+ordinal, so an anchor of `button "Learn about webhooks"`,
+  // landmark `main`, ordinal 0 will happily match the *first button in main on
+  // whatever page is open* once tiers 1–3 miss — on /signup that is "Sign up".
+  // Across routes that match carries no information: same-ordinal-in-landmark
+  // is a claim about a screen being a redesign of the compiled one, and a
+  // different route is not that screen. Within the right route the ladder runs
+  // untouched, all four tiers, including that structural fallback.
+  const elsewhere = !!step.route && step.route !== location.pathname;
+  const target = elsewhere ? null : resolveAnchor(step.anchor);
 
   positionAround(target, step.placement);
   reposition = () => positionAround(target, step.placement);
@@ -300,8 +328,16 @@ function renderStep(
   const isLast = index === tour.steps.length - 1;
   tooltip.innerHTML = "";
 
+  // TR-06 / CLAUDE.md L7 — an unresolved anchor is reported, never skipped.
+  // Two different facts hide behind one null and the operator needs them apart:
+  // the control is *gone from this build*, or it is *on another screen*.
+  // `route` is what separates them. The tour does not navigate on the
+  // operator's behalf either way — a runtime that moves a user in order to make
+  // its own step succeed is not evidence that the step works.
   const eyebrow = document.createElement("div");
-  eyebrow.textContent = `Step ${index + 1} of ${tour.steps.length}`;
+  eyebrow.textContent =
+    `Step ${index + 1} of ${tour.steps.length}` +
+    (target ? "" : elsewhere ? " · another screen" : " · anchor unresolved");
   eyebrow.style.cssText =
     "font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#94A3B8;margin-bottom:6px";
 
@@ -310,7 +346,11 @@ function renderStep(
   title.style.cssText = "font-weight:600;font-size:15px;margin-bottom:4px";
 
   const body = document.createElement("div");
-  body.textContent = step.body;
+  body.textContent = target
+    ? step.body
+    : elsewhere
+      ? `This step is on ${step.route}. Open that screen to continue — the tour will not navigate for you.`
+      : `Its anchor — ${step.anchor.role} “${step.anchor.name}” — did not resolve on this page.`;
   body.style.cssText = "font-size:13px;color:#94A3B8;line-height:1.4;margin-bottom:12px";
 
   const controls = document.createElement("div");

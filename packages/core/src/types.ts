@@ -375,5 +375,13 @@ export const TourStepSchema = z.object({
   body: z.string(),
   placement: z.string(),
   status: StepStatus,
+  // TR-06 — the pathname of the state this step was compiled against, so a
+  // runtime playing the tour can tell "this anchor is gone" apart from "this
+  // anchor lives on another screen" and say which. Optional because the row
+  // itself does not carry it: `TourStep` has a `stateId`, and only the run's
+  // `StateGraph` knows that state's url, so it is filled in at the export
+  // boundary where both are in scope (server.ts, `GET /tours/:id/export`).
+  // Absent here means "not resolvable from the graph", never "the root route".
+  route: z.string().optional(),
 });
 export type TourStep = z.infer<typeof TourStepSchema>;

@@ -13,7 +13,9 @@ type Tour = {
 };
 
 type ExportPayload = {
-  tourJson: unknown;
+  // TR-06 — `route` is filled in by the export endpoint from the run's graph,
+  // so it exists here and not on the steps `POST /runs/:id/tour` returns.
+  tourJson: { steps: (TourStep & { route?: string })[] };
   embedSnippet: string;
 };
 
@@ -313,21 +315,48 @@ export default function TourBuilder({ runId }: { runId: string }) {
     if (data) setExportData(data);
   }
 
-  async function handlePreview() {
+  /**
+   * TR-06 — opens the target app at the first approved step's own route with
+   * `?tour=<id>`, and the target's bootstrap does the rest. This replaces the
+   * console-paste preview that stood here: that flow existed only because
+   * nothing on the target could fetch a tour, and leaving its button in place
+   * would leave UI copy instructing the operator to do something we no longer
+   * need them to do.
+   *
+   * Note what is *not* sent: this hands over a tour id in a query string.
+   * The page fetches the tour itself, through the same server-side approval
+   * gate the Export button uses, so an unapproved step cannot reach the target
+   * by this path any more than by that one.
+   */
+  async function handlePlayOnTarget() {
     setPreviewNote(null);
     const data = await fetchExport();
-    if (!data || !targetUrl) return;
+    if (!data || !tour) return;
+    if (!targetUrl) {
+      setPreviewNote("This run recorded no target url, so there is nowhere to open.");
+      return;
+    }
+
+    // The first approved step is where the tour begins, so that is the screen
+    // to land on. A step whose state carried no parsable url in the graph has
+    // no `route`; the target's own entry point is the honest fallback, and it
+    // is named as a fallback rather than passed off as the step's screen.
+    const firstRoute = data.tourJson.steps[0]?.route;
+    let url: URL;
     try {
-      await navigator.clipboard.writeText(data.embedSnippet);
-      setPreviewNote(
-        "Embed snippet copied. Cross-origin pages can't be scripted from here directly — paste it into the new tab's console to preview.",
-      );
+      url = new URL(firstRoute ?? "/", targetUrl);
     } catch {
+      setPreviewNote("Could not build a target url from this run's target and the step's route.");
+      return;
+    }
+    url.searchParams.set("tour", tour.id);
+
+    if (!firstRoute) {
       setPreviewNote(
-        "Couldn't access the clipboard. Open Export to copy the snippet, then paste it into the new tab's console.",
+        "The first approved step has no recorded route, so the target opened at its entry point. The step may report that its anchor did not resolve there.",
       );
     }
-    window.open(targetUrl, "_blank", "noopener,noreferrer");
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
   }
 
   if (loading) {
@@ -364,14 +393,23 @@ export default function TourBuilder({ runId }: { runId: string }) {
           {approvedCount} of {tour.steps.length} approved
         </span>
         <div className="flex gap-2">
+          {/* Brief §9 "Button · secondary": transparent, 1px --rule-strong,
+              --ink-0, hover bg --chart-shoal. Disabled follows §9's stated
+              disabled treatment — --chart-shoal bg, --ink-2 text, and a tooltip
+              that states the reason, which the "N of M approved" count beside
+              it also states in text so the reason is never tooltip-only. */}
           <button
             type="button"
             disabled={!canShip}
-            onClick={handlePreview}
-            title={canShip ? undefined : "Approve at least one step first"}
-            className="rounded-md border border-rule-strong px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-ink-1 hover:text-ink-0 disabled:cursor-not-allowed disabled:border-rule disabled:text-ink-2 disabled:hover:text-ink-2"
+            onClick={handlePlayOnTarget}
+            title={
+              canShip
+                ? "Opens the target app at the first approved step with ?tour="
+                : "Approve at least one step first"
+            }
+            className="rounded-md border border-rule-strong bg-transparent px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-ink-0 transition-colors duration-fast ease-out hover:bg-shoal disabled:cursor-not-allowed disabled:border-rule disabled:bg-shoal disabled:text-ink-2 disabled:hover:bg-shoal"
           >
-            Preview on target
+            Play on target
           </button>
           <button
             type="button"
@@ -392,7 +430,7 @@ export default function TourBuilder({ runId }: { runId: string }) {
       )}
 
       {exportOpen && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-6">
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-abyss/85 p-6">
           <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-rule-strong bg-shelf p-5">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-ink-1">

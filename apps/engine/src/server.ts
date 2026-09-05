@@ -73,9 +73,41 @@ const USHER_RT_BUNDLE_PATH = path.join(
   "usher-rt.js",
 );
 
+/**
+ * TR-06 — the only cross-origin reader of this engine is Meridian's tour
+ * bootstrap, which fetches one approved tour and nothing else.
+ *
+ * This was `{ origin: true }`, which reflects whatever `Origin` a request
+ * arrives with — i.e. every site on the internet could read every endpoint
+ * here from a victim's browser, including run graphs and findings. Nothing
+ * needed it: the interface reaches the engine through Next's server-side
+ * `/api/*` rewrite (next.config.ts), which is server-to-server and sends no
+ * `Origin` at all, so CORS never applied to it. The evaluation harness and the
+ * fixtures are Node processes, likewise unaffected.
+ *
+ * So the allowance is now exactly the one the feature needs: a GET of a single
+ * tour's export, from the Meridian origin. Everything else answers with no
+ * CORS headers and is therefore unreadable cross-origin, which is what §8's
+ * posture requires of a tool that holds crawl output.
+ */
+const MERIDIAN_ORIGINS = [
+  "http://localhost:5173", // Meridian v1 — see run-defaults.ts MERIDIAN_ORIGIN
+  "http://127.0.0.1:5173",
+  "http://localhost:5174", // Meridian v2 (TRD §5) — same bootstrap, same need
+  "http://127.0.0.1:5174",
+];
+const TOUR_EXPORT_PATH = /^\/tours\/[^/]+\/export(\?|$)/;
+
 const app = Fastify({ logger: true });
 
-await app.register(cors, { origin: true });
+// @fastify/cors' dynamic delegator: it sees the request, so the allowance can
+// be scoped per route rather than per server.
+await app.register(cors, () => (request, callback) => {
+  const isTourExport =
+    (request.method === "GET" || request.method === "OPTIONS") &&
+    TOUR_EXPORT_PATH.test(request.url);
+  callback(null, { origin: isTourExport ? MERIDIAN_ORIGINS : false });
+});
 
 // TRD §7 / Backend Schema §7 — screenshots on disk, served statically.
 // @fastify/static requires `root` to exist at registration time, so a fresh
@@ -395,11 +427,33 @@ app.get<{ Params: { id: string } }>("/tours/:id/export", async (request, reply) 
     return reply.status(400).send({ error: "no approved steps to export" });
   }
 
+  // TR-06 — a step knows its `stateId`; only the run's graph knows that state's
+  // url. Resolved here because this is the one place both are in scope, and a
+  // step whose state is not in the graph is left without a `route` rather than
+  // given a plausible-looking default (CLAUDE.md §6.5).
+  const run = await prisma.run.findUnique({ where: { id: tour.runId } });
+  const routeByStateId = new Map<string, string>();
+  if (run?.graph) {
+    const graph: StateGraph = JSON.parse(run.graph);
+    for (const [stateId, state] of Object.entries(graph.nodes)) {
+      try {
+        routeByStateId.set(stateId, new URL(state.url).pathname);
+      } catch {
+        // A state whose url will not parse gets no route, and the runtime then
+        // treats the step as route-unknown rather than route-mismatched.
+      }
+    }
+  }
+
   const tourJson = {
     id: tour.id,
     runId: tour.runId,
     version: tour.version,
-    steps: shippable.map((s) => toCoreTourStep(s)),
+    steps: shippable.map((s) => {
+      const step = toCoreTourStep(s);
+      const route = routeByStateId.get(step.stateId);
+      return route ? { ...step, route } : step;
+    }),
   };
 
   const embedSnippet = `<script src="${ENGINE_ORIGIN}/usher-rt.js"></script>\n<script>DryRunTour.start(${JSON.stringify(tourJson)});</script>`;
