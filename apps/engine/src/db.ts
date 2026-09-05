@@ -73,7 +73,16 @@ export function toCoreTourStep(
 export async function saveCrawlResult(
   runId: string,
   graph: StateGraph,
-  counters: { stateCount: number; actionCount: number; truncated: boolean },
+  counters: {
+    stateCount: number;
+    actionCount: number;
+    truncated: boolean;
+    // CR-13 / L5 — the crawl already knew it had replayed a fixture and threw
+    // the fact away here. Recorded at the crawl boundary, which is the only
+    // moment anything knows it, so the replay-mode banner has something to
+    // disclose on every later view of the run.
+    replayedFrom?: { fixtureId: string };
+  },
 ) {
   // No `stage` write here. Scouts are cut (CLAUDE.md §5), so the old
   // `stage: "scouts"` set every run to a stage that no longer exists in the
@@ -86,6 +95,9 @@ export async function saveCrawlResult(
       stateCount: counters.stateCount,
       actionCount: counters.actionCount,
       truncated: counters.truncated,
+      // null, not undefined: a re-run of a run that previously replayed must
+      // clear the flag rather than inherit it.
+      replayFixtureId: counters.replayedFrom?.fixtureId ?? null,
     },
   });
 }

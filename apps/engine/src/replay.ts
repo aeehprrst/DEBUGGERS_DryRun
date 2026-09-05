@@ -31,6 +31,10 @@ const REPLAY_EVENT_INTERVAL_MS = 60;
 // DRYRUN_REPLAY can ever escape the fixtures root.
 const FIXTURE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export type FixtureProvenance = {
   fixtureId: string;
   /** Free-form metadata from fixture.json — absent on a hand-built fixture. */
@@ -90,6 +94,22 @@ export async function replayCrawl(
   options: {
     checkCancel?: () => void;
     onStateFound?: (statesFound: number) => void;
+    /**
+     * PRESENTATION ONLY (CLAUDE.md §6.6) — milliseconds to wait after each SSE
+     * emission so a replayed crawl is legibly watchable on a projector. 0, the
+     * default, is the pre-existing behaviour exactly.
+     *
+     * **This changes nothing about the data.** Same states, same edges, same
+     * order, same counts; every event emitted is a real observation this
+     * fixture recorded in a real browser, and only the playback speed differs.
+     * It is a sleep between emits and nothing else.
+     *
+     * It is a parameter rather than an env read *inside this function* on
+     * purpose: the evaluation harness drives the same orchestrator, and a
+     * variable this path could read for itself would silently pace `pnpm demo`
+     * and move its wall clock. Only the server entry point supplies it.
+     */
+    paceMs?: number;
   } = {},
 ): Promise<ReplayResult> {
   const dir = fixtureDir(fixtureId);
@@ -114,6 +134,13 @@ export async function replayCrawl(
   }
 
   const checkCancel = options.checkCancel ?? (() => {});
+  // Guarded so a negative or non-finite value cannot stall the pipeline.
+  const paceMs =
+    Number.isFinite(options.paceMs) && (options.paceMs as number) > 0
+      ? (options.paceMs as number)
+      : 0;
+  const paced = paceMs > 0;
+
   const states = Object.values(graph.nodes);
   const edgesByFrom = new Map<string, typeof graph.edges>();
   for (const edge of graph.edges) {
@@ -133,10 +160,15 @@ export async function replayCrawl(
     emitRunEvent(runId, { t: "state-found", state });
     found += 1;
     options.onStateFound?.(found);
+    if (paced) await sleep(paceMs);
+
     for (const edge of edgesByFrom.get(state.id) ?? []) {
       emitRunEvent(runId, { t: "action-found", edge });
+      if (paced) await sleep(paceMs);
     }
-    await new Promise((resolve) => setTimeout(resolve, REPLAY_EVENT_INTERVAL_MS));
+
+    // Unpaced, the per-state interval is the only wait, exactly as before.
+    if (!paced) await sleep(REPLAY_EVENT_INTERVAL_MS);
   }
 
   return {

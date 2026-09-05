@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ReplayBanner from "@/components/design/ReplayBanner";
 import ViewTabs from "./ViewTabs";
 
 export default async function RunLayout({
@@ -26,7 +27,14 @@ export default async function RunLayout({
         <ViewTabs runId={id} />
       </header>
 
-      <main className="pt-14">{children}</main>
+      {/* L5's disclosure sits in the layout, not in a view, so it is present on
+          Live, Findings, Tour and anything added later — a replayed run is
+          replayed everywhere, not only while the crawl streams. */}
+      <div className="pt-14">
+        <ReplayBanner runId={id} />
+      </div>
+
+      <main>{children}</main>
     </div>
   );
 }

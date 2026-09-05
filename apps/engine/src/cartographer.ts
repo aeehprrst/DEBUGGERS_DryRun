@@ -662,6 +662,14 @@ export type CrawlOptions = {
    * Everything downstream still runs for real.
    */
   replayFixtureId?: string;
+  /**
+   * PRESENTATION ONLY — playback pacing for the replay path, in ms. 0/absent
+   * is the existing behaviour. Never read from the environment here or below:
+   * only the server entry point supplies it, so the evaluation harness (which
+   * drives the same orchestrator) cannot be paced and its wall clock cannot
+   * move. Affects emission timing only, never the graph.
+   */
+  replayPaceMs?: number;
   /** Throws to abort the crawl; called once per state (TRD §4.1 rule 5). */
   checkCancel?: () => void;
   /** Reports states found so the orchestrator can map them onto its band. */
@@ -687,6 +695,7 @@ export async function runCrawl(
     const replayed = await replayCrawl(runId, replayFixtureId, {
       checkCancel: options.checkCancel,
       onStateFound: options.onStateFound,
+      paceMs: options.replayPaceMs,
     });
     return {
       graph: replayed.graph,

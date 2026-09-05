@@ -40,6 +40,29 @@ import { emitRunEvent, subscribeToRun } from "./sse.js";
 // the engine's address for its own rewrite destination.
 const ENGINE_ORIGIN = "http://localhost:4000";
 
+/**
+ * PRESENTATION ONLY (CLAUDE.md §6.6) — `DRYRUN_REPLAY_PACE_MS` spaces a
+ * replayed crawl's SSE emissions so the Live view is legibly watchable during a
+ * demo instead of finishing in under a second. Default 0: off, current
+ * behaviour.
+ *
+ * **It changes nothing about the data.** The states, edges, order, counts,
+ * findings and scores are identical at any pace; every event it spaces out is a
+ * real observation the fixture recorded in a real browser. Only playback speed
+ * moves, which is why it is disclosed as pacing and never as a crawl setting.
+ *
+ * **This is the only place it is read**, deliberately. The evaluation harness
+ * drives the same `RunOrchestrator`, so a variable that `replayCrawl` or the
+ * orchestrator could read for itself would silently pace `pnpm demo` and move
+ * the wall clock PRD §10 budgets. Reading it here, at the HTTP entry point the
+ * harness never touches, is what makes that impossible rather than merely
+ * unlikely.
+ */
+function replayPaceMsFromEnv(): number {
+  const parsed = Number(process.env.DRYRUN_REPLAY_PACE_MS ?? "");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
 const USHER_RT_BUNDLE_PATH = path.join(
   process.cwd(),
   "..",
@@ -85,6 +108,10 @@ app.get<{ Params: { id: string } }>("/runs/:id", async (request, reply) => {
     targetUrl: run.targetUrl,
     graph: run.graph ? (JSON.parse(run.graph) as StateGraph) : null,
     findings: findingRows.map(toCoreFinding),
+    // CR-13 / L5 — the fixture this run replayed, or null for a real crawl.
+    // The replay-mode banner is the disclosure L5 requires and it must be
+    // available on every view of the run, not only while the crawl streams.
+    replayFixtureId: run.replayFixtureId ?? null,
     // AN-07 — the run-level ExclusionIndex, on the existing run endpoint rather
     // than a new one. Three distinct states reach the client and must stay
     // distinguishable: `null` means analysis has not run (or predates AN-07);
@@ -262,6 +289,7 @@ app.post<{
       allowActions: resolvedAllowActions,
       personaMix: DEFAULT_PERSONA_MIX,
       populationSize: DEFAULT_POPULATION_SIZE,
+      replayPaceMs: replayPaceMsFromEnv(),
     });
 
     return { runId: run.id };

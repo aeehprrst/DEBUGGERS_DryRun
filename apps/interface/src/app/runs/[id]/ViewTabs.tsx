@@ -11,13 +11,25 @@ const VIEWS = [
   { key: "drift", label: "Drift" },
 ] as const;
 
+/**
+ * Views whose route exists but which render nothing built yet. A tab that leads
+ * to a stub is worse than no tab: it invites a click during a demo and answers
+ * with an empty screen.
+ *
+ * Re-enabling is deleting one entry from this set — the routes, the components
+ * and the tab definitions above are all still here. Drop "atlas" when AT-01
+ * wires `Atlas2D`/`Atlas3D` to `GET /runs/:id/graph`; drop "drift" when TR-07
+ * lands.
+ */
+export const HIDDEN_VIEWS: ReadonlySet<string> = new Set(["atlas", "drift"]);
+
 export default function ViewTabs({ runId }: { runId: string }) {
   const searchParams = useSearchParams();
   const activeView = searchParams.get("view") ?? "live";
 
   return (
     <nav className="flex items-center gap-1">
-      {VIEWS.map((view) => {
+      {VIEWS.filter((view) => !HIDDEN_VIEWS.has(view.key)).map((view) => {
         const isActive = activeView === view.key;
         return (
           <Link

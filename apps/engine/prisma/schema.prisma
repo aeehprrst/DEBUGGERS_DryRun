@@ -75,6 +75,13 @@ model Run {
   // they ride inside the metrics blob above so GET /runs/:id/graph serves them.
   exclusionIndex String?                       // RunExclusion — packages/core
 
+  // CR-13 / CLAUDE.md L5 — the fixture id this run replayed instead of
+  // crawling, or NULL for a real crawl. NULLABLE and additive (§6.9). L5
+  // requires the replay to be disclosed rather than quietly substituted, and
+  // a banner cannot disclose what the run does not record: replayedFrom was
+  // computed by the crawl and thrown away before this column existed.
+  replayFixtureId String?
+
   // ── denormalised counters, for list views without parsing blobs ──
   stateCount       Int     @default(0)
   actionCount      Int     @default(0)

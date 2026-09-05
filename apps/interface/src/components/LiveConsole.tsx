@@ -12,21 +12,20 @@ import Atlas3D from "./Atlas3D";
 // That's the real auto-transition signal, not `stage === "done"`.
 const AUTO_TRANSITION_DELAY_MS = 800;
 
-type ScoutStepEvent = {
-  index: number;
-  stateId: string;
-  decisionSource: "heuristic" | "model" | "fallback";
-  thought: string;
-};
-
+// The scout-start / scout-step / scout-end members of the engine's RunEvent
+// union are deliberately absent here. Scouts are cut (CLAUDE.md §5) and nothing
+// in the engine emits one, so carrying them in the client type only kept a
+// panel and three feed strings alive that advertised a removed subsystem.
 type RunEvent =
   | { t: "stage"; stage: RunStage; pct: number; status?: RunStatus }
   | { t: "state-found"; state: AppState }
   | { t: "action-found"; edge: ActionEdge }
-  | { t: "scout-start"; personaId: string; label: string }
-  | { t: "scout-step"; personaId: string; step: ScoutStepEvent }
-  | { t: "scout-end"; personaId: string; result: string }
   | { t: "error"; message: string; fatal: boolean };
+
+// App Flow §3 — the statuses a run can be left in for good. A run already in
+// one of these when the operator opens Live has nothing left to stream, and
+// must not be bounced off the view it was asked for.
+const TERMINAL_STATUSES: RunStatus[] = ["DONE", "FAILED", "DEGRADED", "CANCELLED"];
 
 // The rail shows the four stages that do work; "done" is a terminal marker,
 // not a row. Derived from the enum so a new stage cannot be added to the
@@ -43,12 +42,6 @@ function describeEvent(event: RunEvent): string {
       return `State found: ${event.state.title} (${event.state.url})`;
     case "action-found":
       return `Action found: ${event.edge.action} "${event.edge.anchor.name}" (${event.edge.fromStateId} → ${event.edge.toStateId || "?"})`;
-    case "scout-start":
-      return `Scout started: ${event.label}`;
-    case "scout-step":
-      return `Scout step ${event.step.index} @ ${event.step.stateId}: ${event.step.thought}`;
-    case "scout-end":
-      return `Scout ended: ${event.result}`;
     case "error":
       return `Error: ${event.message}`;
   }
@@ -61,14 +54,28 @@ export default function LiveConsole({ runId }: { runId: string }) {
   const [discoveredStates, setDiscoveredStates] = useState<AppState[]>([]);
   const [edges, setEdges] = useState<ActionEdge[]>([]);
   const [events, setEvents] = useState<RunEvent[]>([]);
-  const [scoutSteps, setScoutSteps] = useState<ScoutStepEvent[]>([]);
   const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
 
   useEffect(() => {
-    const source = new EventSource(`/api/runs/${runId}/events`);
+    let cancelled = false;
+    let source: EventSource | undefined;
     let redirectTimeout: ReturnType<typeof setTimeout> | undefined;
 
-    source.onmessage = (message) => {
+    // The auto-transition fires on the TRANSITION into a terminal status during
+    // this mount, never on merely observing one. The SSE stream replays its
+    // whole buffer to a late subscriber (sse.ts), so opening Live on a finished
+    // run delivers the original DONE event again — which used to bounce the
+    // operator straight back to Findings and made Live unreachable on any
+    // completed run. So the run's status is read once before subscribing, and
+    // the redirect is armed only if there was still something left to watch.
+    let armed = false;
+
+    const startStream = () => {
+      source = new EventSource(`/api/runs/${runId}/events`);
+      source.onmessage = onMessage;
+    };
+
+    const onMessage = (message: MessageEvent) => {
       let event: RunEvent;
       try {
         event = JSON.parse(message.data);
@@ -81,38 +88,61 @@ export default function LiveConsole({ runId }: { runId: string }) {
       if (event.t === "stage") {
         setStage(event.stage);
         setProgressPct(event.pct);
-        if (event.status === "DONE") {
-          // The pipeline has nothing left to run automatically — stop
-          // listening immediately, then hand off after a brief settle so the
-          // last live update isn't cut off mid-render.
-          source.close();
-          redirectTimeout = setTimeout(() => {
-            // SHORTCUT (CLAUDE.md §6.6): this should land on the Atlas, which
-            // is the run's natural resting screen. AT-01 is unbuilt, so
-            // `?view=atlas` renders a stub string and the happy path would
-            // dead-end on an empty view. Findings is the finished screen, so
-            // it stands in. Point this back at `?view=atlas` as soon as the
-            // Atlas renders real `AtlasNode` data from `GET /runs/:id/graph`;
-            // nothing else in this file needs to change.
-            //
-            // `replace`, not `push`: Back from here should return to wherever
-            // the operator was before Live, not bounce forward into this same
-            // redirect again.
-            router.replace(`/runs/${runId}?view=findings`);
-          }, AUTO_TRANSITION_DELAY_MS);
+        if (event.status && TERMINAL_STATUSES.includes(event.status)) {
+          // Nothing further will be emitted for this run, so stop listening
+          // either way. Only the arming decides whether we also navigate.
+          source?.close();
+
+          // DONE only: Findings is where a finished run belongs, and a FAILED
+          // or CANCELLED run has nothing to show there. Those stay on Live with
+          // the partial graph, which is what App Flow §3 promises.
+          if (armed && event.status === "DONE") {
+            redirectTimeout = setTimeout(() => {
+              // SHORTCUT (CLAUDE.md §6.6): this should land on the Atlas, which
+              // is the run's natural resting screen. AT-01 is unbuilt, so
+              // `?view=atlas` renders a stub string and the happy path would
+              // dead-end on an empty view. Findings is the finished screen, so
+              // it stands in. Point this back at `?view=atlas` as soon as the
+              // Atlas renders real `AtlasNode` data from `GET /runs/:id/graph`;
+              // nothing else in this file needs to change.
+              //
+              // `replace`, not `push`: Back from here should return to wherever
+              // the operator was before Live, not bounce forward into this same
+              // redirect again.
+              router.replace(`/runs/${runId}?view=findings`);
+            }, AUTO_TRANSITION_DELAY_MS);
+          }
         }
       } else if (event.t === "state-found") {
         setDiscoveredStates((prev) => [...prev, event.state]);
       } else if (event.t === "action-found") {
         setEdges((prev) => [...prev, event.edge]);
-      } else if (event.t === "scout-step") {
-        setScoutSteps((prev) => [...prev, event.step].slice(-MAX_FEED_LENGTH));
       }
     };
 
+    void (async () => {
+      // Read the status before subscribing, so the buffered replay of a
+      // finished run cannot be mistaken for a live transition. A failure here
+      // leaves the redirect disarmed: staying on Live is the safe wrong answer,
+      // because the operator can always click Findings, whereas a wrong
+      // redirect takes the view away from them.
+      try {
+        const res = await fetch(`/api/runs/${runId}`);
+        if (res.ok) {
+          const run = (await res.json()) as { status?: RunStatus };
+          armed = !!run.status && !TERMINAL_STATUSES.includes(run.status);
+        }
+      } catch {
+        armed = false;
+      }
+      if (cancelled) return;
+      startStream();
+    })();
+
     return () => {
+      cancelled = true;
       clearTimeout(redirectTimeout);
-      source.close();
+      source?.close();
     };
   }, [runId, router]);
 
@@ -187,31 +217,10 @@ export default function LiveConsole({ runId }: { runId: string }) {
           </ul>
         </section>
 
-        <section className="rounded-lg border border-rule bg-shelf p-5">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-1">
-            Scout feed
-          </h2>
-          <ul
-            aria-live="polite"
-            className="mt-3 max-h-[240px] space-y-2 overflow-y-auto text-sm"
-          >
-            {scoutSteps.length === 0 ? (
-              <li className="text-ink-2">No scouts have reported in yet…</li>
-            ) : (
-              scoutSteps.map((step, index) => (
-                <li
-                  key={index}
-                  className="rounded-md border-l-2 border-flow bg-shoal px-3 py-2"
-                >
-                  <p className="text-ink-0">{step.thought}</p>
-                  <p className="mt-1 font-mono text-[11px] text-ink-2">
-                    {step.stateId} · {step.decisionSource}
-                  </p>
-                </li>
-              ))
-            )}
-          </ul>
-        </section>
+        {/* The "Scout feed" panel that used to sit here is deleted. Scouts are
+            cut (CLAUDE.md §5, first item) and nothing emits a scout event, so
+            the panel could only ever render "No scouts have reported in yet…" —
+            dead UI advertising a removed subsystem. */}
 
         <section className="flex-1 rounded-lg border border-rule bg-shelf p-5">
           <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-1">

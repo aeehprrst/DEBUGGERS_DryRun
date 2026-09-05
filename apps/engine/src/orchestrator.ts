@@ -19,6 +19,13 @@ export type RunConfig = {
   allowActions: AllowActions;
   personaMix: PersonaTraitVector[];
   populationSize: number;
+  /**
+   * PRESENTATION ONLY — replay playback pacing in ms, supplied by the server
+   * entry point from DRYRUN_REPLAY_PACE_MS. Absent everywhere else, which is
+   * how the evaluation harness stays unpaced: it constructs this config itself
+   * and never sets the field, so `pnpm demo`'s wall clock cannot move.
+   */
+  replayPaceMs?: number;
 };
 
 export class RunCancelledError extends Error {
@@ -158,6 +165,7 @@ export class RunOrchestrator {
     const result = await runCrawl(this.runId, this.cfg.targetUrl, {
       seededValues: this.cfg.seededValues,
       allowActions: this.cfg.allowActions,
+      replayPaceMs: this.cfg.replayPaceMs,
       // Rule 5 — cancellation is checked between units of work; for the crawl
       // a unit is one state.
       checkCancel: () => this.checkCancel(),
