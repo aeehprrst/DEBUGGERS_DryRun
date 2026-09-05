@@ -120,7 +120,8 @@ function StepCard({
   return (
     <div
       className={`rounded-lg border bg-shelf p-4 ${
-        isApproved ? "border-l-4 border-l-emerald-500 border-y-rule border-r-rule" : "border-rule"
+        // UI/UX §8.5 — "Approved cards get an --ok left border."
+        isApproved ? "border-l-4 border-l-ok border-y-rule border-r-rule" : "border-rule"
       }`}
     >
       <div className="flex gap-3">
@@ -195,17 +196,27 @@ function StepCard({
           >
             ✎ Edit
           </button>
+          {/* UI/UX §9 "Button · secondary" — transparent, 1px --rule-strong,
+              --ink-0, hover bg --chart-shoal. Reject is destructive but it does
+              not get its own hue: §2 allows exactly one accent, and §3.6 makes
+              --danger the marker value, which is reserved for selection and
+              primary action. */}
           <button
             type="button"
             onClick={onReject}
-            className="rounded-md border border-red-400/40 px-3 py-1 text-xs text-red-400 hover:border-red-400"
+            className="rounded-md border border-rule-strong bg-transparent px-3 py-1 text-xs text-ink-0 hover:bg-shoal"
           >
             ✕ Reject
           </button>
+          {/* --ok is §3.6's declared token for "intact, approved, success", and
+              §8.5 already spends it on this card's approved state. Reusing it
+              on the action keeps the affirmative signal on one declared colour
+              instead of introducing a second accent. Not a spec'd button
+              variant — the brief names only primary and secondary in §9. */}
           <button
             type="button"
             onClick={onApprove}
-            className="rounded-md border border-emerald-500/40 px-3 py-1 text-xs text-emerald-400 hover:border-emerald-500"
+            className="rounded-md border border-ok/40 px-3 py-1 text-xs text-ok hover:border-ok"
           >
             ✓ Approve
           </button>

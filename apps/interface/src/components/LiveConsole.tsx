@@ -83,14 +83,22 @@ export default function LiveConsole({ runId }: { runId: string }) {
         setProgressPct(event.pct);
         if (event.status === "DONE") {
           // The pipeline has nothing left to run automatically — stop
-          // listening immediately, then hand off to the Atlas view after a
-          // brief settle so the last live update isn't cut off mid-render.
+          // listening immediately, then hand off after a brief settle so the
+          // last live update isn't cut off mid-render.
           source.close();
           redirectTimeout = setTimeout(() => {
-            // `replace`, not `push`: Back from Atlas should return to
-            // wherever the operator was before Live, not bounce forward
-            // into this same redirect again.
-            router.replace(`/runs/${runId}?view=atlas`);
+            // SHORTCUT (CLAUDE.md §6.6): this should land on the Atlas, which
+            // is the run's natural resting screen. AT-01 is unbuilt, so
+            // `?view=atlas` renders a stub string and the happy path would
+            // dead-end on an empty view. Findings is the finished screen, so
+            // it stands in. Point this back at `?view=atlas` as soon as the
+            // Atlas renders real `AtlasNode` data from `GET /runs/:id/graph`;
+            // nothing else in this file needs to change.
+            //
+            // `replace`, not `push`: Back from here should return to wherever
+            // the operator was before Live, not bounce forward into this same
+            // redirect again.
+            router.replace(`/runs/${runId}?view=findings`);
           }, AUTO_TRANSITION_DELAY_MS);
         }
       } else if (event.t === "state-found") {
